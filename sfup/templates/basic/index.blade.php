@@ -7,7 +7,6 @@
     <title>{{$title}}</title>
     <link rel="stylesheet" href="templates/{{$themedir}}/scss/base.min.css">
 </head>
-
 <body>
 <header>
     <div>
@@ -23,10 +22,10 @@
                     <svg viewBox="0 0 640 512"><use href="templates/{{$themedir}}/icons/cloud-upload-alt.svg#cloud-upload"></svg>
                 </div>
                 <p>Drag and drop a file or click</p>
-                <input type="file" name="upfile[]" id="input-files" multiple accept="{{$type}}">
+                <input type="file" name="upfile[]" id="input-files" accept="{{$type}}" multiple>
             </div>
             <div>
-                <input type="text" placeholder="あいことば" autocomplete="current-password" name="authword">
+                @if ($use_auth) <input type="text" placeholder="あいことば" autocomplete="current-password" name="authword"> @endif
                 <input type="submit" id="submit-btn" value=" うp ">
             </div>
         </form>
