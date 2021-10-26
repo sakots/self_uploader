@@ -1,9 +1,0 @@
-@charset "UTF-8";
-/*! =====このcssファイルはsassから生成されています。===== */
-input[type=file] {
-  opacity: 0;
-  position: absolute;
-  width: 100%;
-  height: 100%;
-}
-/*# sourceMappingURL=base.css.map */
