@@ -17,7 +17,8 @@ $admin_pass = 'kanripass';
 //デフォルトでは管理者パスワードと同一です。
 //設定するとこれ、もしくは管理者パスワードでアップロードできるようになります
 //さらに設定で不要にもできます。
-$watchword = '';
+//こちらもkanripass のままではプログラムは動作しません。
+$watchword = 'kanripass';
 
 //以上です
 
@@ -49,6 +50,9 @@ define('TEMP_DIR', 'tmp');
 
 //アップロードに管理パス、もしくは合言葉が必要 必要:0 不要:1
 define('UP_AUTH', '0');
+
+//アップロードできるファイルの最大サイズ(MB)
+define('UP_MAX_MB', '15');
 
 //アップロード可能なファイルの種類(mimetypeです)
 define('ACCEPT_FILETYPE', 'audio/mpeg, audio/aac, audio/mp4, audio/ogg, audio/flac, audio/x-flac');

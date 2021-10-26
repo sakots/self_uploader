@@ -8,8 +8,8 @@
 define('SFUP_VER','v0.0.1'); //lot.211026.0
 
 //設定の読み込み
-require(__DIR__.'/config.php');
-require(__DIR__.'/templates/'.THEME_DIR.'/theme.ini.php');
+require_once (__DIR__.'/config.php');
+require_once (__DIR__.'/templates/'.THEME_DIR.'/theme.ini.php');
 
 //タイムゾーン設定
 date_default_timezone_set(DEFAULT_TIMEZONE);
@@ -23,8 +23,8 @@ if (CONF_VER < 1 || !defined('CONF_VER')) {
     die("コンフィグファイルに互換性がないようです。再設定をお願いします。<br>\n The configuration file is incompatible. Please reconfigure it.");
 }
 //管理パスが初期値(kanripass)の場合は動作させない
-if ($admin_pass === 'kanripass') {
-    die("管理パスが初期設定値のままです！危険なので動かせません。<br>\n The admin pass is still at its default value! This program can't run it until you fix it.");
+if ($admin_pass === 'kanripass' || $watchword === 'kanripass') {
+    die("管理パス、または合言葉が初期設定値のままです！危険なので動かせません。<br>\n The admin pass or watchword is still at its default value! This program can't run it until you fix it.");
 }
 
 //BladeOne v4.1
@@ -47,7 +47,15 @@ $dat['ver'] = SFUP_VER;
 $dat['title'] = SFUP_TITLE;
 $dat['themedir'] = THEME_DIR;
 
+define('UP_MAX_SIZE', UP_MAX_MB*1024*1024);
+$dat['up_max_size'] = UP_MAX_SIZE;
+
 $dat['type'] = ACCEPT_FILETYPE;
+
+if(UP_AUTH === '0') {
+    $dat['use_auth'] = true;
+}
+
 
 $dat['t_name'] = THEME_NAME;
 $dat['t_ver'] = THEME_VER;
@@ -66,14 +74,14 @@ $req_method = isset($_SERVER["REQUEST_METHOD"]) ? $_SERVER["REQUEST_METHOD"]: ""
 
 $mode = filter_input(INPUT_POST, 'mode');
 
-    switch($mode) {
-        case 'upload':
-            return upload();
-        case 'del':
-            return del();
-        default:
-            return def();
-    }
+switch($mode) {
+    case 'upload':
+        return upload();
+    case 'del':
+        return del();
+    default:
+        return def();
+}
 exit;
 
 /* ----------- main ------------- */
@@ -127,11 +135,12 @@ function get_uip() {
 //csrfトークンを作成
 function get_csrf_token() {
     if(!isset($_SESSION)) {
+        ini_set('session.use_strict_mode', 1);
         session_start();
+        header('Expires:');
+        header('Cache-Control:');
+        header('Pragma:');
     }
-    header('Expires:');
-    header('Cache-Control:');
-    header('Pragma:');
     return hash('sha256', session_id(), false);
 }
 //csrfトークンをチェック
@@ -144,51 +153,72 @@ function check_csrf_token() {
     }
 }
 
-//投稿をデータベースへ保存する
-function uoload() {
+//アップロードしてデータベースへ保存する
+function upload() {
     global $req_method;
+    global $$admin_pass, $watchword;
 
     //CSRFトークンをチェック
     if(CHECK_CSRF_TOKEN){
         check_csrf_token();
     }
-    $sub = filter_input(INPUT_POST, 'sub');
-    $name = filter_input(INPUT_POST, 'name');
-    $com = filter_input(INPUT_POST, 'com');
-    $upfile = filter_input(INPUT_POST, 'upfile');
-    $invz = trim(filter_input(INPUT_POST, 'invz'));
-    $pwd = filter_input(INPUT_POST, 'pwd');
-    $pwdh = password_hash($pwd,PASSWORD_DEFAULT);
+    $invz = '0';
+    //$pwd = filter_input(INPUT_POST, 'pwd');
+    //$pwdh = password_hash($pwd,PASSWORD_DEFAULT);
 
-    if($req_method !== "POST") {error('投稿形式が不正です。');}
+    if($req_method !== "POST") {error('投稿形式が不正です。'); }
 
-    //ホスト取得
-    $host = gethostbyaddr(get_uip());
+    if(UP_AUTH === '0' && filter_input(INPUT_POST, 'authword') !== ($admin_pass || $watchword)) {
+        error('合言葉が違います。アップロードできません。');
+	}
+    get_uip();
 
-    try {
-        $db = new PDO(DB_PDO);
-
-    } catch (PDOException $e) {
-        echo "DB接続エラー:" .$e->getMessage();
+    //アップロード処理
+    $ok_message = '';
+    $ng_message = '';
+    for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
+        if ($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
+            $tmpfile = TEMP_DIR.'/'.basename($_FILES['upfile']['name'][$i]);
+            if (move_uploaded_file($_FILES['upfile']['tmp_name'][$i], $tmpfile)) {
+                chmod($tmpfile, PERMISSION_FOR_DEST);
+                $extn = pathinfo($tmpfile);
+                $extn = str_replace("'","''",$extn); //念のため
+                $time = time();
+                $newfile = UP_DIR.'/'.$time.'.'.$extn;
+                rename($tmpfile, $newfile);
+                chmod($newfile, PERMISSION_FOR_DEST);
+                try {
+                    $db = new PDO(DB_PDO);
+                    $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$newfile', '$invz')";
+                    $db->exec($sql);
+                    $db = null; //db切断
+                } catch (PDOException $e) {
+                    echo "DB接続エラー:" .$e->getMessage();
+                }
+                $ok_message .= $_FILES['upfile']['name'][$i].', ';
+            } else {
+                $ng_message .= $_FILES['upfile']['name'][$i].'('.$_FILES['upfile']['error'].'), ';
+            }
+        } else {
+            $ng_message .= $_FILES['upfile']['name'][$i].'(設定されたファイルサイズをオーバー), ';
+        }
     }
-}
-
-//アップロード
-function upload() {
     //ログ行数オーバー処理
-	//スレ数カウント
+	//ファイル数カウント
 	try {
 		$db = new PDO(DB_PDO);
 		$sqlth = "SELECT COUNT(*) as cnt FROM uplog";
 		$countth = $db->query("$sqlth");
 		$countth = $countth->fetch();
 		$th_cnt = $countth["cnt"];
+        $db = null; //db切断
 	} catch (PDOException $e) {
 		echo "DB接続エラー:" .$e->getMessage();
 	}
 	if($th_cnt > LOG_MAX) {
 		logdel();
 	}
+    result($ok_message,$ng_message);
 }
 
 //削除
@@ -200,6 +230,7 @@ function del() {
 function def() {
 	global $dat,$blade;
     $page_def = PAGE_DEF;
+
     //ファイル数カウント
 	try {
 		$db = new PDO(DB_PDO);
@@ -207,9 +238,16 @@ function def() {
 		$countth = $db->query("$sqlth");
 		$countth = $countth->fetch();
 		$th_cnt = $countth["cnt"];
+        $db = null; //db切断
 	} catch (PDOException $e) {
 		echo "DB接続エラー:" .$e->getMessage();
 	}
+
+    //ファイル数が圧倒的に多いときは通常表示の時にも消す
+    if($th_cnt > LOG_MAX) {
+		logdel();
+	}
+
     //ページング
 	try {
 		$db = new PDO(DB_PDO);
@@ -250,11 +288,11 @@ function def() {
 		$dat['next'] = ($page + 1);
 
         echo $blade->run(MAINFILE,$dat);
+
 		$db = null; //db切断
 	} catch (PDOException $e) {
 		echo "DB接続エラー:" .$e->getMessage();
 	}
-
 }
 
 /* ---------- 細かい関数 ---------- */
@@ -264,9 +302,9 @@ function deltemp() {
     $handle = opendir(TEMP_DIR);
     while ($file = readdir($handle)) {
         if(!is_dir($file)) {
-            $lapse = time() - filemtime(TEMP_DIR.$file);
+            $lapse = time() - filemtime(TEMP_DIR.'/'.$file);
             if($lapse > (24*3600)){
-                unlink(TEMP_DIR.$file);
+                unlink(TEMP_DIR.'/'.$file);
             }
         }
     }
@@ -275,7 +313,7 @@ function deltemp() {
 
 //ログの行数が最大値を超えていたら削除
 function logdel() {
-	//オーバーした行の画像とスレ番号を取得
+	//オーバーした行のスレ番号
 	try {
 		$db = new PDO(DB_PDO);
 		$sqlimg = "SELECT * FROM uplog ORDER BY tid LIMIT 1";
@@ -304,10 +342,19 @@ function logdel() {
 	}
 }
 
-// 文字コード変換
+//文字コード変換
 function charconvert($str) {
     mb_language(LANG);
     return mb_convert_encoding($str, "UTF-8", "auto");
+}
+
+//リザルト画面
+function result($ok,$err) {
+    global $blade,$dat;
+    $dat['okmes'] = $ok;
+    $dat['errmes'] = $err;
+    $dat['othermode'] = 'result';
+    echo $blade->run(OTHERFILE,$dat);
 }
 
 //OK画面
