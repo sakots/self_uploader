@@ -39,9 +39,6 @@ define('THEME_DIR', 'basic');
 //古いファイルから順番に消えます
 define('LOG_MAX', '75');
 
-//1ページに表示するファイル数
-define('PAGE_DEF', '20');
-
 //アップロードファイル保存ディレクトリ名
 define('UP_DIR', 'upfile');
 

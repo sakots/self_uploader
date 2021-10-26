@@ -95,7 +95,7 @@ function init() {
             // はじめての実行なら、テーブルを作成
             $db = new PDO(DB_PDO);
             $db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
-            $sql = "CREATE TABLE uplog (tid integer primary key autoincrement, created timestamp, name VARCHAR(1000), sub VARCHAR(1000), com VARCHAR(10000), host TEXT, pwd TEXT, upfile TEXT, age INT, invz VARCHAR(1) )";
+            $sql = "CREATE TABLE uplog (id integer primary key autoincrement, created timestamp, name VARCHAR(1000), sub VARCHAR(1000), com VARCHAR(10000), host TEXT, pwd TEXT, upfile TEXT, age INT, invz VARCHAR(1) )";
             $db = $db->query($sql);
             $db = null; //db切断
         }
@@ -184,7 +184,7 @@ function upload() {
                 $extn = pathinfo($tmpfile);
                 $extn = str_replace("'","''",$extn); //念のため
                 $time = time();
-                $newfile = UP_DIR.'/'.$time.'.'.$extn;
+                $newfile = $time.'.'.$extn;
                 rename($tmpfile, $newfile);
                 chmod($newfile, PERMISSION_FOR_DEST);
                 try {
@@ -229,7 +229,14 @@ function del() {
 //通常表示モード
 function def() {
 	global $dat,$blade;
-    $page_def = PAGE_DEF;
+
+    //csrfトークンをセット
+	$dat['token']='';
+	if(CHECK_CSRF_TOKEN){
+		$token = get_csrf_token();
+		$_SESSION['token'] = $token;
+		$dat['token'] = $token;
+	}
 
     //ファイル数カウント
 	try {
@@ -248,44 +255,18 @@ function def() {
 		logdel();
 	}
 
-    //ページング
+    //ならべる
 	try {
 		$db = new PDO(DB_PDO);
-		if (isset($_GET['page']) && is_numeric($_GET['page'])) {
-			$page = $_GET['page'];
-			$page = max($page,1);
-		} else {
-			$page = 1;
+		$sql = "SELECT * FROM uplog WHERE invz=0 ORDER BY id DESC";
+        $posts = $db->query($sql);
+        $j = 0;
+        while ( $j < $th_cnt) {
+			$file = $posts->fetch();
+			if(empty($file)){break;} //ファイルがなくなったら抜ける
+			$files[] = $file;
+			$j++;
 		}
-		$start = $page_def * ($page - 1);
-
-		//最大何ページあるのか
-		$sql = "SELECT COUNT(*) as cnt FROM uplog WHERE invz=0";
-		$counts = $db->query("$sql");
-		$count = $counts->fetch(); //スレ数取得できた
-		$max_page = floor($count["cnt"] / $page_def) + 1;
-		//最後にスレ数0のページができたら表示しない処理
-		if(($count["cnt"] % $page_def) == 0){
-			$max_page = $max_page - 1;
-			//ただしそれが1ページ目なら困るから表示
-			$max_page = max($max_page,1);
-		}
-		$dat['max_page'] = $max_page;
-
-		//リンク作成用
-		$dat['nowpage'] = $page;
-		$p = 1;
-		$pp = array();
-		$paging = array();
-		while ($p <= $max_page) {
-			$paging[($p)] = compact('p');
-			$pp[] = $paging;
-			$p++;
-		}
-		$dat['paging'] = $paging;
-		$dat['pp'] = $pp;
-		$dat['back'] = ($page - 1);
-		$dat['next'] = ($page + 1);
 
         echo $blade->run(MAINFILE,$dat);
 
