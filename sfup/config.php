@@ -11,7 +11,7 @@
 
 //管理者パスワード
 //必ず変更してください ! kanripass のままではプログラムは動作しません !
-$admin_pass = 'pass';
+$admin_pass = 'kanripass';
 
 //アップロード合言葉
 //デフォルトでは管理者パスワードと同一です。
@@ -51,7 +51,7 @@ define('TEMP_DIR', 'tmp');
 define('UP_AUTH', '0');
 
 //アップロード可能なファイルの種類(mimetypeです)
-$filetype = array('audio/mpeg','audio/aac','audio/mp4','audio/ogg','audio/flac','audio/x-flac');
+define('ACCEPT_FILETYPE', 'audio/mpeg, audio/aac, audio/mp4, audio/ogg, audio/flac, audio/x-flac');
 
 // タイムゾーン
 define('DEFAULT_TIMEZONE','Asia/Tokyo');

@@ -47,6 +47,8 @@ $dat['ver'] = SFUP_VER;
 $dat['title'] = SFUP_TITLE;
 $dat['themedir'] = THEME_DIR;
 
+$dat['type'] = ACCEPT_FILETYPE;
+
 $dat['t_name'] = THEME_NAME;
 $dat['t_ver'] = THEME_VER;
 

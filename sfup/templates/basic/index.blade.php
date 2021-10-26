@@ -23,10 +23,10 @@
                     <svg viewBox="0 0 640 512"><use href="templates/{{$themedir}}/icons/cloud-upload-alt.svg#cloud-upload"></svg>
                 </div>
                 <p>Drag and drop a file or click</p>
-                <input type="file" name="upfile[]" id="input-files" multiple>
+                <input type="file" name="upfile[]" id="input-files" multiple accept="{{$type}}">
             </div>
             <div>
-                <input type="text" placeholder="あいことば" autocomplete="current-password">
+                <input type="text" placeholder="あいことば" autocomplete="current-password" name="authword">
                 <input type="submit" id="submit-btn" value=" うp ">
             </div>
         </form>
