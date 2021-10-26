@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{$title}}</title>
-    <link rel="stylesheet" href="templates/{{$themedir}}/scss/base.min.css">
+    <link rel="stylesheet" href="templates/{{$themedir}}/css/base.min.css">
 </head>
 <body>
 <header>
@@ -16,7 +16,7 @@
 <main>
     <section id="up">
         <h2>ろだ</h2>
-        <form action="" method="POST" enctype="multipart/form-data">
+        <form action="?mode=upload" method="POST" enctype="multipart/form-data">
             <div class="upload-area">
                 <div class="dropbox">
                     <svg viewBox="0 0 640 512"><use href="templates/{{$themedir}}/icons/cloud-upload-alt.svg#cloud-upload"></svg>
@@ -25,15 +25,35 @@
                 <input type="file" name="upfile[]" id="input-files" accept="{{$type}}" multiple>
             </div>
             <div>
-                @if ($use_auth) <input type="text" placeholder="あいことば" autocomplete="current-password" name="authword"> @endif
+                @if ($use_auth)
+                <input type="text" placeholder="あいことば" autocomplete="current-password" name="authword">
+                @endif
                 <input type="submit" id="submit-btn" value=" うp ">
+                @if ($token != null)
+				<input type="hidden" name="token" value="{{$token}}">
+				@else
+				<input type="hidden" name="token" value="">
+				@endif
             </div>
         </form>
     </section>
-    <section id="files">
+    <section id="filesec">
         <h2>ファイル</h2>
         <div>
-
+            @if (!empty($files))
+            <div class="files">
+                <label for="panel">一覧</label>
+                <ul>
+                    @foreach ($files as $file)
+                    <li><a href="{{$path}}/{{$file['newfile']}}" target="_brank">{{$file['newfile']}}</a></li>
+                    @endforeach
+                </ul>
+            </div>
+            @else
+            <div>
+                <p>まだない。</p>
+            </div>
+            @endif
         </div>
     </section>
 </main>

@@ -1,0 +1,194 @@
+@charset "UTF-8";
+/*! =====このcssファイルはsassから生成されています。===== */
+body {
+  color: #201;
+  background-attachment: fixed;
+  background: -webkit-gradient(linear, left top, left bottom, from(#BCA), to(#769459)) fixed;
+  background: linear-gradient(#BCA, #769459) fixed;
+}
+body > * {
+  width: 60%;
+  margin-left: 10%;
+}
+
+h1 {
+  border-bottom: 1px solid #352;
+}
+
+a:link {
+  color: #601;
+}
+
+a:hover {
+  color: #A12;
+}
+
+a:active {
+  color: #A12;
+}
+
+a:visited {
+  color: #555;
+}
+
+#up form {
+  margin: 1.5em auto;
+  height: 30vw;
+  -webkit-box-shadow: 0 0 2px #3e3e3e;
+          box-shadow: 0 0 2px #3e3e3e;
+  padding: 30px;
+  text-align: center;
+}
+#up div.upload-area {
+  margin: auto;
+  width: 85%;
+  height: 25vw;
+  position: relative;
+  border: 1px dashed rgba(37, 37, 65, 0.4);
+}
+#up div.upload-area div.dropbox {
+  opacity: 0.2;
+  background: #FFF;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+#up div.upload-area svg {
+  position: absolute;
+  width: 120px;
+  height: auto;
+  fill: #433;
+  opacity: 0.4;
+  left: 50%;
+  top: 50%;
+  -webkit-transform: translate(-50%, -60%);
+          transform: translate(-50%, -60%);
+}
+#up div.upload-area p {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  opacity: 0.8;
+  top: 65%;
+}
+#up div.upload-area input[type=file] {
+  opacity: 0;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+#up input[type=submit] {
+  font-weight: bold;
+  margin-top: 16px;
+  border-radius: 6px;
+  width: 10em;
+  height: 3em;
+  background-color: rgba(108, 168, 255, 0.7);
+  border-style: solid;
+  border-color: rgba(40, 62, 95, 0.7);
+  border-width: 1px 3px 3px 1px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+#up input[type=submit]:hover {
+  background-color: #6ca8ff;
+  border-color: rgba(40, 62, 95, 0.7);
+  border-width: 1px 3px 3px 1px;
+}
+#up input[type=submit]:active {
+  background-color: #6ca8ff;
+  border-color: rgba(40, 62, 95, 0.7);
+  border-width: 3px 1px 1px 3px;
+}
+#up input[type=text] {
+  border-width: 1px;
+  border-color: rgba(0, 0, 0, 0.4);
+  background-color: #EFEFEF;
+  padding: 3px;
+}
+
+#filesec ul {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  padding: 0;
+  margin: 0;
+  -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
+  -webkit-box-align: start;
+      -ms-flex-align: start;
+          align-items: flex-start;
+  -ms-flex-line-pack: start;
+      align-content: flex-start;
+}
+#filesec ul li {
+  margin: 1px;
+  outline: 1px solid #352;
+  background-color: rgba(255, 255, 255, 0.3);
+  display: block;
+  -ms-flex-preferred-size: 8em;
+      flex-basis: 8em;
+}
+#filesec ul li a {
+  color: #601;
+  display: block;
+  padding-top: 0.3em;
+  padding-bottom: 0.3em;
+  text-decoration: none;
+}
+#filesec ul li a:hover {
+  color: #A12;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+#filesec ul li a:active {
+  color: #A12;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+#filesec ul li a:visited {
+  color: #666;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+footer {
+  border-top: 1px solid #352;
+}
+footer .copy {
+  margin-top: 0.8em;
+}
+footer .copy p {
+  font-size: smaller;
+  text-align: right;
+  margin-top: 0.1ex;
+  margin-bottom: 0.1ex;
+}
+footer .copy p a.github {
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  color: #FFF;
+  font-weight: bold;
+  text-decoration: none;
+  background-color: #555;
+  padding: 2px 6px 2px 6px;
+  border-radius: 3px;
+}
+footer .copy p a.github:active {
+  color: #FFF;
+  background-color: #559;
+}
+footer .copy p a.github:hover {
+  color: #FFF;
+  background-color: #777;
+}
+footer .copy p a.github svg {
+  vertical-align: middle;
+  width: 14px;
+  height: auto;
+  fill: #FFF;
+  margin-right: 0.4em;
+}
+/*# sourceMappingURL=base.css.map */
