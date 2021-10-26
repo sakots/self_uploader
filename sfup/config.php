@@ -1,17 +1,17 @@
 <?php
-/*
-    SELF UPLOADER v0.0.1～
-    by sakots >> https://dev.oekakibbs.net/
-
-    SELF UPLOADER の設定ファイルです。
-
-*/
+//--------------------------------------------------
+//  SELF UPLOADER v0.0.1～
+//  by sakots >> https://dev.oekakibbs.net/
+//
+//  SELF UPLOADER の設定ファイルです。
+//
+//--------------------------------------------------
 
 /* ---------- 最低限設定する項目 ---------- */
 
 //管理者パスワード
 //必ず変更してください ! kanripass のままではプログラムは動作しません !
-$admin_pass = 'kanripass';
+$admin_pass = 'pass';
 
 //アップロード合言葉
 //デフォルトでは管理者パスワードと同一です。
@@ -30,12 +30,22 @@ define('SFUP_TITLE', 'self uploader');
 //拡張子は.dbで固定です。
 define('DB_NAME', 'sfup');
 
+//テーマのディレクトリ名
+//見た目が変わります。いまはこれしかないです。
+define('THEME_DIR', 'basic');
+
 //最大ファイル保持数
 //古いファイルから順番に消えます
-define('LOG_MAX', '200');
+define('LOG_MAX', '75');
+
+//1ページに表示するファイル数
+define('PAGE_DEF', '20');
 
 //アップロードファイル保存ディレクトリ名
 define('UP_DIR', 'upfile');
+
+//一時ファイル保存ディレクトリ名
+define('TEMP_DIR', 'tmp');
 
 //アップロードに管理パス、もしくは合言葉が必要 必要:0 不要:1
 define('UP_AUTH', '0');
