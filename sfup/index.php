@@ -156,7 +156,7 @@ function check_csrf_token() {
 //アップロードしてデータベースへ保存する
 function upload() {
     global $req_method;
-    global $$admin_pass, $watchword, $up_path;
+    global $admin_pass, $watchword, $up_path;
 
     //CSRFトークンをチェック
     if(CHECK_CSRF_TOKEN){
@@ -171,32 +171,29 @@ function upload() {
     if(UP_AUTH === '0' && filter_input(INPUT_POST, 'authword') !== ($admin_pass || $watchword)) {
         error('合言葉が違います。アップロードできません。');
 	}
-    get_uip();
+    $userip = get_uip();
 
     //アップロード処理
     $ok_message = '';
     $ng_message = '';
     for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
+        $upfile_name = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
+	    $upfile = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
         if ($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
-            $upfile_name = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
-	        $upfile = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
             $extn = pathinfo($upfile_name, PATHINFO_EXTENSION);
-            move_uploaded_file($upfile, $tmpfile);
-            chmod($tmpfile, PERMISSION_FOR_DEST);
             if(!preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', $extn)) {
                 $ng_message .= $upfile_name.'(拡張子がおかしいです。), ';
             }
-            $extn = str_replace("'","''",$extn); //念のため
-            $dest = $up_path.time().'.tmp';
-            copy($upfile, $dest);
-            $is_file_dest = is_file($dest);
-            if(!$is_file_dest) {
+            $dest = $up_path.time().$extn;
+            move_uploaded_file($upfile, $dest);
+            chmod($dest, PERMISSION_FOR_DEST);
+            if(!is_file($dest)) {
                 $ng_message .= $upfile_name.'(正常にコピーできませんでした。), ';
             }
             chmod($dest, PERMISSION_FOR_DEST);
             try {
                 $db = new PDO(DB_PDO);
-                $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$newfile', '$invz')";
+                $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$dest', '$invz')";
                 $db->exec($sql);
                 $db = null; //db切断
             } catch (PDOException $e) {
