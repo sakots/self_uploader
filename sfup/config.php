@@ -1,6 +1,6 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.0.1～
+//  SELF UPLOADER v0.1.0～
 //  by sakots >> https://dev.oekakibbs.net/
 //
 //  SELF UPLOADER の設定ファイルです。
@@ -51,8 +51,11 @@ define('UP_AUTH', '0');
 //アップロードできるファイルの最大サイズ(MB)
 define('UP_MAX_MB', '15');
 
-//アップロード可能なファイルの種類(mimetypeです)
-define('ACCEPT_FILETYPE', 'audio/mpeg, audio/aac, audio/mp4, audio/ogg, audio/flac, audio/x-flac');
+//アップロード可能なファイルのmimetype。', 'で区切ってください。
+define('ACCEPT_FILETYPE', 'audio/mpeg, audio/aac, audio/mp4, audio/ogg, audio/flac');
+
+//アップロード可能なファイルの拡張子。'|'（パイプ）で区切ってください。
+define('ACCEPT_FILE_EXTN', 'mp3|m4a|aac|opus|ogg|flac');
 
 // タイムゾーン
 define('DEFAULT_TIMEZONE','Asia/Tokyo');

@@ -1,11 +1,11 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.0.1
+//  SELF UPLOADER v0.1.0
 //  by sakots https://dev.oekakibbs.net/
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.0.1'); //lot.211026.0
+define('SFUP_VER','v0.1.0'); //lot.211027.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -39,8 +39,8 @@ $blade->pipeEnable = true; // パイプのフィルターを使えるように�
 $dat = array(); // bladeに格納する変数
 
 //絶対パス取得
-$up_path = realpath("./").'/'.UP_DIR;
-$temp_path = realpath("./").'/'.TEMP_DIR;
+$up_path = realpath("./").UP_DIR.'/';
+$temp_path = realpath("./").TEMP_DIR.'/';
 
 $dat['path'] = UP_DIR;
 $dat['ver'] = SFUP_VER;
@@ -52,9 +52,7 @@ $dat['up_max_size'] = UP_MAX_SIZE;
 
 $dat['type'] = ACCEPT_FILETYPE;
 
-if(UP_AUTH === '0') {
-    $dat['use_auth'] = true;
-}
+$dat['use_auth'] = UP_AUTH === '0' ? true : false ;
 
 
 $dat['t_name'] = THEME_NAME;
@@ -72,7 +70,9 @@ $req_method = isset($_SERVER["REQUEST_METHOD"]) ? $_SERVER["REQUEST_METHOD"]: ""
 
 /*----------- mode -------------*/
 
+//INPUT_POSTから変数を取得
 $mode = filter_input(INPUT_POST, 'mode');
+$mode = $mode ? $mode : filter_input(INPUT_GET, 'mode');
 
 switch($mode) {
     case 'upload':
@@ -156,52 +156,62 @@ function check_csrf_token() {
 //アップロードしてデータベースへ保存する
 function upload() {
     global $req_method;
-    global $admin_pass, $watchword, $up_path;
+    global $admin_pass, $up_path, $watchword;
 
     //CSRFトークンをチェック
     if(CHECK_CSRF_TOKEN){
         check_csrf_token();
     }
+    $upfile  = '';
     $invz = '0';
     //$pwd = filter_input(INPUT_POST, 'pwd');
     //$pwdh = password_hash($pwd,PASSWORD_DEFAULT);
 
     if($req_method !== "POST") {error('投稿形式が不正です。'); }
 
-    if(UP_AUTH === '0' && filter_input(INPUT_POST, 'authword') !== ($admin_pass || $watchword)) {
+    if(UP_AUTH === '0' && (filter_input(INPUT_POST, 'authword') !== $admin_pass || filter_input(INPUT_POST, 'authword') !== $watchword)) {
         error('合言葉が違います。アップロードできません。');
 	}
     $userip = get_uip();
 
     //アップロード処理
+    $dest = '';
     $ok_message = '';
     $ng_message = '';
+    if(count($_FILES['upfile']['name']) < 1) {
+        error('ファイルがないです。');
+        exit;
+    }
     for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
-        $upfile_name = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
-	    $upfile = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
-        if ($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
-            $extn = pathinfo($upfile_name, PATHINFO_EXTENSION);
-            if(!preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', $extn)) {
-                $ng_message .= $upfile_name.'(拡張子がおかしいです。), ';
-            }
-            $dest = $up_path.time().$extn;
-            move_uploaded_file($upfile, $dest);
+        $orgin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
+	    $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
+        $oknum = 0;
+        if($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
+            $extn = pathinfo($orgin_file, PATHINFO_EXTENSION);
+            $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extn;
+            $dest = UP_DIR.'/'.$upfile;
+            move_uploaded_file($tmp_file, $dest);
             chmod($dest, PERMISSION_FOR_DEST);
             if(!is_file($dest)) {
-                $ng_message .= $upfile_name.'(正常にコピーできませんでした。), ';
+                $ng_message .= $orgin_file.'(正常にコピーできませんでした。), ';
             }
-            chmod($dest, PERMISSION_FOR_DEST);
-            try {
-                $db = new PDO(DB_PDO);
-                $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$dest', '$invz')";
-                $db->exec($sql);
-                $db = null; //db切断
-            } catch (PDOException $e) {
-                echo "DB接続エラー:" .$e->getMessage();
+            //拡張子チェック
+            if(preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', pathinfo($orgin_file, PATHINFO_EXTENSION))) {
+                try {
+                    $db = new PDO(DB_PDO);
+                    $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$upfile', '$invz')";
+                    $db->exec($sql);
+                    $db = null; //db切断
+                } catch (PDOException $e) {
+                    echo "DB接続エラー:" .$e->getMessage();
+                }
+                $oknum++;
+			} else {
+                $ng_message .= $orgin_file.'(規定外の拡張子なので削除), ';
+                unlink($dest);
             }
-            $ok_message .= $upfile_name.', ';
         } else {
-            $ng_message .= $upfile_name.'(設定されたファイルサイズをオーバー), ';
+            $ng_message .= $orgin_file.'(設定されたファイルサイズをオーバー), ';
         }
     }
     //ログ行数オーバー処理
@@ -219,7 +229,7 @@ function upload() {
 	if($th_cnt > LOG_MAX) {
 		logdel();
 	}
-    result($ok_message,$ng_message);
+    result($oknum,$ng_message);
 }
 
 //削除
@@ -260,14 +270,13 @@ function def() {
 	try {
 		$db = new PDO(DB_PDO);
 		$sql = "SELECT * FROM uplog WHERE invz=0 ORDER BY id DESC";
-        $posts = $db->query($sql);
-        $j = 0;
-        while ( $j < $th_cnt) {
-			$file = $posts->fetch();
-			if(empty($file)){break;} //ファイルがなくなったら抜ける
-			$files[] = $file;
-			$j++;
+        $filelist = array();
+        $post = $db->query($sql);
+        while ($files = $post->fetch()) {
+			$filelist[] = $files;
 		}
+
+        $dat['filelist'] = $filelist;
 
         echo $blade->run(MAINFILE,$dat);
 
@@ -333,7 +342,7 @@ function charconvert($str) {
 //リザルト画面
 function result($ok,$err) {
     global $blade,$dat;
-    $dat['okmes'] = $ok;
+    $dat['oknum'] = $ok;
     $dat['errmes'] = $err;
     $dat['othermode'] = 'result';
     echo $blade->run(OTHERFILE,$dat);
