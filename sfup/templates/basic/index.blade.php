@@ -16,7 +16,7 @@
 <main>
     <section id="up">
         <h2>ろだ</h2>
-        <form action="?mode=upload" method="POST" enctype="multipart/form-data">
+        <form action="index.php?mode=upload" method="POST" enctype="multipart/form-data">
             <div class="upload-area">
                 <div class="dropbox">
                     <svg viewBox="0 0 640 512"><use href="templates/{{$themedir}}/icons/cloud-upload-alt.svg#cloud-upload"></svg>
