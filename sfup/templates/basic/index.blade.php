@@ -40,20 +40,15 @@
     <section id="filesec">
         <h2>ファイル</h2>
         <div>
-            @if (!empty($files))
             <div class="files">
-                <label for="panel">一覧</label>
-                <ul>
-                    @foreach ($files as $file)
-                    <li><a href="{{$path}}/{{$file['newfile']}}" target="_brank">{{$file['newfile']}}</a></li>
-                    @endforeach
-                </ul>
+                <div class="contain">
+                    <ul>
+                        @foreach ($filelist as $files)
+                        <li><a href="{{$path}}/{{$files['upfile']}}" target="_top" rel="noopener noreferrer">{{$files['upfile']}}</a></li>
+                        @endforeach
+                    </ul>
+                </div>
             </div>
-            @else
-            <div>
-                <p>まだない。</p>
-            </div>
-            @endif
         </div>
     </section>
 </main>
@@ -66,6 +61,10 @@
         </p>
         <p>
             theme - {{$t_name}} {{$t_ver}} by sakots
+        </p>
+        <p>
+            useed function -
+            <a href="https://github.com/EFTEC/BladeOne" target="_top" rel="noopener noreferrer">BladeOne</a>
         </p>
     </div>
 </footer>

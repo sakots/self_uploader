@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{$title}}</title>
-    <link rel="stylesheet" href="templates/{{$themedir}}/scss/base.min.css">
+    <link rel="stylesheet" href="templates/{{$themedir}}/css/base.min.css">
 </head>
 <body>
     <header>
@@ -18,14 +18,14 @@
     <main>
         <section>
             <h2>結果ログ</h2>
-            <p>
-                {{$okmes}}はアップロードに成功しました。
-            </p>
-            @if($errmes != '')
-            <p>
-                {{$errmes}}は、失敗しました。
-            </p>
-            @endif
+                <p>
+                    <strong>{{$oknum}}個</strong>のファイルアップロードに成功しました。
+                </p>
+                @if($errmes)
+                <p>
+                    {{$errmes}}は、失敗しました。
+                </p>
+                @endif
         </section>
         <section>
             <p>

@@ -111,6 +111,9 @@ a:visited {
   padding: 3px;
 }
 
+#filesec {
+  margin-bottom: 1em;
+}
 #filesec ul {
   display: -webkit-box;
   display: -ms-flexbox;
@@ -126,7 +129,7 @@ a:visited {
       align-content: flex-start;
 }
 #filesec ul li {
-  margin: 1px;
+  margin: 0;
   outline: 1px solid #352;
   background-color: rgba(255, 255, 255, 0.3);
   display: block;
@@ -139,6 +142,10 @@ a:visited {
   padding-top: 0.3em;
   padding-bottom: 0.3em;
   text-decoration: none;
+  font-size: smaller;
+  padding: 2px 0;
+  width: 17em;
+  text-align: center;
 }
 #filesec ul li a:hover {
   color: #A12;
