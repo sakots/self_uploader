@@ -156,7 +156,7 @@ function check_csrf_token() {
 //アップロードしてデータベースへ保存する
 function upload() {
     global $req_method;
-    global $$admin_pass, $watchword;
+    global $$admin_pass, $watchword, $up_path;
 
     //CSRFトークンをチェック
     if(CHECK_CSRF_TOKEN){
@@ -178,29 +178,33 @@ function upload() {
     $ng_message = '';
     for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
         if ($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
-            $tmpfile = TEMP_DIR.'/'.basename($_FILES['upfile']['name'][$i]);
-            if (move_uploaded_file($_FILES['upfile']['tmp_name'][$i], $tmpfile)) {
-                chmod($tmpfile, PERMISSION_FOR_DEST);
-                $extn = pathinfo($tmpfile);
-                $extn = str_replace("'","''",$extn); //念のため
-                $time = time();
-                $newfile = $time.'.'.$extn;
-                rename($tmpfile, $newfile);
-                chmod($newfile, PERMISSION_FOR_DEST);
-                try {
-                    $db = new PDO(DB_PDO);
-                    $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$newfile', '$invz')";
-                    $db->exec($sql);
-                    $db = null; //db切断
-                } catch (PDOException $e) {
-                    echo "DB接続エラー:" .$e->getMessage();
-                }
-                $ok_message .= $_FILES['upfile']['name'][$i].', ';
-            } else {
-                $ng_message .= $_FILES['upfile']['name'][$i].'('.$_FILES['upfile']['error'].'), ';
+            $upfile_name = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
+	        $upfile = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
+            $extn = pathinfo($upfile_name, PATHINFO_EXTENSION);
+            move_uploaded_file($upfile, $tmpfile);
+            chmod($tmpfile, PERMISSION_FOR_DEST);
+            if(!preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', $extn)) {
+                $ng_message .= $upfile_name.'(拡張子がおかしいです。), ';
             }
+            $extn = str_replace("'","''",$extn); //念のため
+            $dest = $up_path.time().'.tmp';
+            copy($upfile, $dest);
+            $is_file_dest = is_file($dest);
+            if(!$is_file_dest) {
+                $ng_message .= $upfile_name.'(正常にコピーできませんでした。), ';
+            }
+            chmod($dest, PERMISSION_FOR_DEST);
+            try {
+                $db = new PDO(DB_PDO);
+                $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$newfile', '$invz')";
+                $db->exec($sql);
+                $db = null; //db切断
+            } catch (PDOException $e) {
+                echo "DB接続エラー:" .$e->getMessage();
+            }
+            $ok_message .= $upfile_name.', ';
         } else {
-            $ng_message .= $_FILES['upfile']['name'][$i].'(設定されたファイルサイズをオーバー), ';
+            $ng_message .= $upfile_name.'(設定されたファイルサイズをオーバー), ';
         }
     }
     //ログ行数オーバー処理
