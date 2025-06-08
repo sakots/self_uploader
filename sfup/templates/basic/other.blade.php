@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{$title}}</title>
-    <link rel="stylesheet" href="templates/{{$themedir}}/css/base.min.css">
+    <link rel="stylesheet" href="templates/{{$theme_dir}}/css/base.min.css">
 </head>
 <body>
     <header>
@@ -57,7 +57,7 @@
         <div class="copy">
             <p>
                 SELF UPLOADER {{$ver}} &copy; 2021 sakots
-                <a href="https://github.com/sakots/self_uploader" class="github"><svg viewBox="0 0 496 512"><use href="templates/{{$themedir}}/icons/github.svg#github"></svg>github</a>
+                <a href="https://github.com/sakots/self_uploader" class="github"><svg viewBox="0 0 496 512"><use href="templates/{{$theme_dir}}/icons/github.svg#github"></svg>github</a>
             </p>
             <p>
                 theme - {{$t_name}} {{$t_ver}} by sakots

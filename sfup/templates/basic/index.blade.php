@@ -5,7 +5,8 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{$title}}</title>
-    <link rel="stylesheet" href="templates/{{$themedir}}/css/base.min.css">
+    <link rel="stylesheet" href="templates/{{$theme_dir}}/css/base.min.css">
+    <script src="templates/{{$theme_dir}}/js/upload.js"></script>
 </head>
 <body>
 <header>
@@ -16,10 +17,11 @@
 <main>
     <section id="up">
         <h2>ろだ</h2>
+        <p>最大アップロードサイズ: {{$up_max_mb}}MB</p>
         <form action="index.php?mode=upload" method="POST" enctype="multipart/form-data">
             <div class="upload-area">
                 <div class="dropbox">
-                    <svg viewBox="0 0 640 512"><use href="templates/{{$themedir}}/icons/cloud-upload-alt.svg#cloud-upload"></svg>
+                    <svg viewBox="0 0 640 512"><use href="templates/{{$theme_dir}}/icons/cloud-upload-alt.svg#cloud-upload"></svg>
                 </div>
                 <p>Drag and drop a file or click</p>
                 <input type="file" name="upfile[]" id="input-files" accept="{{$type}}" multiple>

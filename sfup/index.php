@@ -54,6 +54,7 @@ $dat['type'] = ACCEPT_FILETYPE;
 
 $dat['use_auth'] = UP_AUTH === '0' ? true : false ;
 
+$dat['up_max_mb'] = UP_MAX_MB;
 
 $dat['t_name'] = THEME_NAME;
 $dat['t_ver'] = THEME_VER;

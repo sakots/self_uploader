@@ -192,3 +192,33 @@ footer {
         }
     }
 }
+
+.upload-area {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    .highlight {
+        border-color: #2196F3;
+        background-color: rgba(33, 150, 243, 0.1);
+    }
+}
+
+.dropbox {
+    margin-bottom: 15px;
+    svg {
+        width: 64px;
+        height: 64px;
+        fill: #666;
+    }
+}
+
+.upload-area.highlight .dropbox svg {
+    fill: #2196F3;
+}
+
+#input-files {
+    display: none;
+}
