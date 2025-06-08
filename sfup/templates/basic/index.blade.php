@@ -43,7 +43,7 @@
             <div class="files">
                 <div class="contain">
                     <ul>
-                        @foreach ($filelist as $files)
+                        @foreach ($file_list as $files)
                         <li><a href="{{$path}}/{{$files['upfile']}}" target="_top" rel="noopener noreferrer">{{$files['upfile']}}</a></li>
                         @endforeach
                     </ul>
@@ -57,13 +57,13 @@
     <div class="copy">
         <p>
             SELF UPLOADER {{$ver}} &copy; 2021 sakots
-            <a href="https://github.com/sakots/self_uploader" class="github"><svg viewBox="0 0 496 512"><use href="templates/{{$themedir}}/icons/github.svg#github"></svg>github</a>
+            <a href="https://github.com/sakots/self_uploader" class="github"><svg viewBox="0 0 496 512"><use href="templates/{{$theme_dir}}/icons/github.svg#github"></svg>github</a>
         </p>
         <p>
             theme - {{$t_name}} {{$t_ver}} by sakots
         </p>
         <p>
-            useed function -
+            used function -
             <a href="https://github.com/EFTEC/BladeOne" target="_top" rel="noopener noreferrer">BladeOne</a>
         </p>
     </div>

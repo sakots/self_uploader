@@ -15,8 +15,8 @@ require_once (__DIR__.'/templates/'.THEME_DIR.'/theme.ini.php');
 date_default_timezone_set(DEFAULT_TIMEZONE);
 
 //phpのバージョンが古い場合動作させない
-if (($phpver = phpversion()) < "5.6.0") {
-    die("PHP version 5.6.0 or higher is required for this program to work. <br>\n(Current PHP version:{$phpver})");
+if (($php_ver = phpversion()) < "5.6.0") {
+    die("PHP version 5.6.0 or higher is required for this program to work. <br>\n(Current PHP version:{$php_ver})");
 }
 //コンフィグのバージョンが古くて互換性がない場合動作させない
 if (CONF_VER < 1 || !defined('CONF_VER')) {
@@ -27,7 +27,7 @@ if ($admin_pass === 'kanripass' || $watchword === 'kanripass') {
     die("管理パス、または合言葉が初期設定値のままです！危険なので動かせません。<br>\n The admin pass or watchword is still at its default value! This program can't run it until you fix it.");
 }
 
-//BladeOne v4.1
+//BladeOne v4.18
 include (__DIR__.'/BladeOne/lib/BladeOne.php');
 use eftec\bladeone\BladeOne;
 
@@ -45,7 +45,7 @@ $temp_path = realpath("./").TEMP_DIR.'/';
 $dat['path'] = UP_DIR;
 $dat['ver'] = SFUP_VER;
 $dat['title'] = SFUP_TITLE;
-$dat['themedir'] = THEME_DIR;
+$dat['theme_dir'] = THEME_DIR;
 
 define('UP_MAX_SIZE', UP_MAX_MB*1024*1024);
 $dat['up_max_size'] = UP_MAX_SIZE;
@@ -183,20 +183,20 @@ function upload() {
         exit;
     }
     for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
-        $orgin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
+        $origin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
 	    $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
-        $oknum = 0;
+        $ok_num = 0;
         if($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
-            $extn = pathinfo($orgin_file, PATHINFO_EXTENSION);
-            $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extn;
+            $extension = pathinfo($origin_file, PATHINFO_EXTENSION);
+            $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extension;
             $dest = UP_DIR.'/'.$upfile;
             move_uploaded_file($tmp_file, $dest);
             chmod($dest, PERMISSION_FOR_DEST);
             if(!is_file($dest)) {
-                $ng_message .= $orgin_file.'(正常にコピーできませんでした。), ';
+                $ng_message .= $origin_file.'(正常にコピーできませんでした。), ';
             }
             //拡張子チェック
-            if(preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', pathinfo($orgin_file, PATHINFO_EXTENSION))) {
+            if(preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', pathinfo($origin_file, PATHINFO_EXTENSION))) {
                 try {
                     $db = new PDO(DB_PDO);
                     $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$upfile', '$invz')";
@@ -205,13 +205,13 @@ function upload() {
                 } catch (PDOException $e) {
                     echo "DB接続エラー:" .$e->getMessage();
                 }
-                $oknum++;
+                $ok_num++;
 			} else {
-                $ng_message .= $orgin_file.'(規定外の拡張子なので削除), ';
+                $ng_message .= $origin_file.'(規定外の拡張子なので削除), ';
                 unlink($dest);
             }
         } else {
-            $ng_message .= $orgin_file.'(設定されたファイルサイズをオーバー), ';
+            $ng_message .= $origin_file.'(設定されたファイルサイズをオーバー), ';
         }
     }
     //ログ行数オーバー処理
@@ -229,7 +229,7 @@ function upload() {
 	if($th_cnt > LOG_MAX) {
 		logdel();
 	}
-    result($oknum,$ng_message);
+    result($ok_num,$ng_message);
 }
 
 //削除
@@ -252,17 +252,17 @@ function def() {
     //ファイル数カウント
 	try {
 		$db = new PDO(DB_PDO);
-		$sqlth = "SELECT COUNT(*) as cnt FROM uplog";
-		$countth = $db->query("$sqlth");
-		$countth = $countth->fetch();
-		$th_cnt = $countth["cnt"];
+		$sql_th = "SELECT COUNT(*) as cnt FROM uplog";
+		$count_th = $db->query("$sql_th");
+		$count_th = $count_th->fetch();
+		$th_count = $count_th["cnt"];
         $db = null; //db切断
 	} catch (PDOException $e) {
 		echo "DB接続エラー:" .$e->getMessage();
 	}
 
     //ファイル数が圧倒的に多いときは通常表示の時にも消す
-    if($th_cnt > LOG_MAX) {
+    if($th_count > LOG_MAX) {
 		logdel();
 	}
 
@@ -270,13 +270,13 @@ function def() {
 	try {
 		$db = new PDO(DB_PDO);
 		$sql = "SELECT * FROM uplog WHERE invz=0 ORDER BY id DESC";
-        $filelist = array();
+        $file_list = array();
         $post = $db->query($sql);
         while ($files = $post->fetch()) {
-			$filelist[] = $files;
+			$file_list[] = $files;
 		}
 
-        $dat['filelist'] = $filelist;
+        $dat['file_list'] = $file_list;
 
         echo $blade->run(MAINFILE,$dat);
 
@@ -307,26 +307,26 @@ function logdel() {
 	//オーバーした行のスレ番号
 	try {
 		$db = new PDO(DB_PDO);
-		$sqlimg = "SELECT * FROM uplog ORDER BY tid LIMIT 1";
-		$msgs = $db->prepare($sqlimg);
+		$sql_img = "SELECT * FROM uplog ORDER BY tid LIMIT 1";
+		$msgs = $db->prepare($sql_img);
 		$msgs->execute();
 		$msg = $msgs->fetch();
 
-		$dtid = (int)$msg["tid"]; //消す行のスレ番号
+		$dt_id = (int)$msg["tid"]; //消す行のスレ番号
 
 		//カウント
-		$sqlc = "SELECT COUNT(*) as cnti FROM uplog WHERE tid = $dtid";
-		$countres = $db->query("$sqlc");
-		$countres = $countres->fetch();
-		$logcount = $countres["cnti"];
+		$sql_c = "SELECT COUNT(*) as cnti FROM uplog WHERE tid = $dt_id";
+		$count_res = $db->query("$sql_c");
+		$count_res = $count_res->fetch();
+		$log_count = $count_res["cnti"];
 		//削除
-		if($logcount !== 0) {
-			$delres = "DELETE FROM uplog WHERE tid = $dtid";
-			$db->exec($delres);
+		if($log_count !== 0) {
+			$del_res = "DELETE FROM uplog WHERE tid = $dt_id";
+			$db->exec($del_res);
 		}
 
 		$msg = null;
-		$dtid = null;
+		$dt_id = null;
 		$db = null; //db切断
 	} catch (PDOException $e) {
 		echo "DB接続エラー:" .$e->getMessage();
