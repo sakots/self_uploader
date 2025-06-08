@@ -7,7 +7,7 @@
 namespace eftec\bladeone;
 
 /*
- * Its an example of a custom set of functions for bladeone.
+ * It's an example of a custom set of functions for bladeone.
  * in examples/TestCustom.php there is a working example
  */
 
@@ -15,7 +15,7 @@ use function array_pop;
 
 trait BladeOneCustom
 {
-    private $customItem = []; // indicates the type of the current tag. such as select/selectgroup/etc.
+    private array $customItem = []; // indicates the type of the current tag. such as select/selectgroup/etc.
 
     //<editor-fold desc="compile function">
     /**
