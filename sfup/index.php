@@ -5,7 +5,7 @@
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.1.0'); //lot.211027.0
+define('SFUP_VER','v0.1.1'); //lot.250609.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -165,14 +165,12 @@ function upload() {
     }
     $upfile  = '';
     $invz = '0';
-    //$pwd = filter_input(INPUT_POST, 'pwd');
-    //$pwdh = password_hash($pwd,PASSWORD_DEFAULT);
 
     if($req_method !== "POST") {error('投稿形式が不正です。'); }
 
     if(UP_AUTH === '0' && (filter_input(INPUT_POST, 'authword') !== $admin_pass || filter_input(INPUT_POST, 'authword') !== $watchword)) {
         error('合言葉が違います。アップロードできません。');
-	}
+    }
     $userip = get_uip();
 
     //アップロード処理
@@ -185,7 +183,7 @@ function upload() {
     }
     for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
         $origin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
-	    $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
+        $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
         $ok_num = 0;
         if($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
             $extension = pathinfo($origin_file, PATHINFO_EXTENSION);
@@ -200,14 +198,18 @@ function upload() {
             if(preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', pathinfo($origin_file, PATHINFO_EXTENSION))) {
                 try {
                     $db = new PDO(DB_PDO);
-                    $sql = "INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), '$userip', '$upfile', '$invz')";
-                    $db->exec($sql);
+                    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    $stmt = $db->prepare("INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), :host, :upfile, :invz)");
+                    $stmt->bindParam(':host', $userip, PDO::PARAM_STR);
+                    $stmt->bindParam(':upfile', $upfile, PDO::PARAM_STR);
+                    $stmt->bindParam(':invz', $invz, PDO::PARAM_STR);
+                    $stmt->execute();
                     $db = null; //db切断
                 } catch (PDOException $e) {
                     echo "DB接続エラー:" .$e->getMessage();
                 }
                 $ok_num++;
-			} else {
+            } else {
                 $ng_message .= $origin_file.'(規定外の拡張子なので削除), ';
                 unlink($dest);
             }
@@ -216,20 +218,21 @@ function upload() {
         }
     }
     //ログ行数オーバー処理
-	//ファイル数カウント
-	try {
-		$db = new PDO(DB_PDO);
-		$sqlth = "SELECT COUNT(*) as cnt FROM uplog";
-		$countth = $db->query("$sqlth");
-		$countth = $countth->fetch();
-		$th_cnt = $countth["cnt"];
+    //ファイル数カウント
+    try {
+        $db = new PDO(DB_PDO);
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $stmt = $db->prepare("SELECT COUNT(*) as cnt FROM uplog");
+        $stmt->execute();
+        $count_th = $stmt->fetch();
+        $th_cnt = $count_th["cnt"];
         $db = null; //db切断
-	} catch (PDOException $e) {
-		echo "DB接続エラー:" .$e->getMessage();
-	}
-	if($th_cnt > LOG_MAX) {
-		logdel();
-	}
+    } catch (PDOException $e) {
+        echo "DB接続エラー:" .$e->getMessage();
+    }
+    if($th_cnt > LOG_MAX) {
+        log_del();
+    }
     result($ok_num,$ng_message);
 }
 
@@ -253,9 +256,10 @@ function def() {
     //ファイル数カウント
 	try {
 		$db = new PDO(DB_PDO);
-		$sql_th = "SELECT COUNT(*) as cnt FROM uplog";
-		$count_th = $db->query("$sql_th");
-		$count_th = $count_th->fetch();
+		$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$stmt = $db->prepare("SELECT COUNT(*) as cnt FROM uplog");
+		$stmt->execute();
+		$count_th = $stmt->fetch();
 		$th_count = $count_th["cnt"];
         $db = null; //db切断
 	} catch (PDOException $e) {
@@ -264,23 +268,25 @@ function def() {
 
     //ファイル数が圧倒的に多いときは通常表示の時にも消す
     if($th_count > LOG_MAX) {
-		logdel();
+		log_del();
 	}
 
     //ならべる
 	try {
 		$db = new PDO(DB_PDO);
-		$sql = "SELECT * FROM uplog WHERE invz=0 ORDER BY id DESC";
-        $file_list = array();
-        $post = $db->query($sql);
-        while ($files = $post->fetch()) {
+		$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$stmt = $db->prepare("SELECT * FROM uplog WHERE invz = :invz ORDER BY id DESC");
+		$invz = '0';
+		$stmt->bindParam(':invz', $invz, PDO::PARAM_STR);
+		$stmt->execute();
+		
+		$file_list = array();
+		while ($files = $stmt->fetch()) {
 			$file_list[] = $files;
 		}
 
-        $dat['file_list'] = $file_list;
-
-        echo $blade->run(MAINFILE,$dat);
-
+		$dat['file_list'] = $file_list;
+		echo $blade->run(MAINFILE,$dat);
 		$db = null; //db切断
 	} catch (PDOException $e) {
 		echo "DB接続エラー:" .$e->getMessage();
@@ -304,34 +310,38 @@ function deltemp() {
 }
 
 //ログの行数が最大値を超えていたら削除
-function logdel() {
-	//オーバーした行のスレ番号
-	try {
-		$db = new PDO(DB_PDO);
-		$sql_img = "SELECT * FROM uplog ORDER BY tid LIMIT 1";
-		$msgs = $db->prepare($sql_img);
-		$msgs->execute();
-		$msg = $msgs->fetch();
-
-		$dt_id = (int)$msg["tid"]; //消す行のスレ番号
-
-		//カウント
-		$sql_c = "SELECT COUNT(*) as cnti FROM uplog WHERE tid = $dt_id";
-		$count_res = $db->query("$sql_c");
-		$count_res = $count_res->fetch();
-		$log_count = $count_res["cnti"];
-		//削除
-		if($log_count !== 0) {
-			$del_res = "DELETE FROM uplog WHERE tid = $dt_id";
-			$db->exec($del_res);
-		}
-
-		$msg = null;
-		$dt_id = null;
-		$db = null; //db切断
-	} catch (PDOException $e) {
-		echo "DB接続エラー:" .$e->getMessage();
-	}
+function log_del() {
+    try {
+        $db = new PDO(DB_PDO);
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        // 最も古いレコードのIDを取得
+        $stmt = $db->prepare("SELECT id FROM uplog ORDER BY id LIMIT 1");
+        $stmt->execute();
+        $msg = $stmt->fetch();
+        
+        if ($msg) {
+            $dt_id = (int)$msg["id"];
+            
+            // 該当IDのレコード数をカウント
+            $stmt = $db->prepare("SELECT COUNT(*) as cnti FROM uplog WHERE id = :id");
+            $stmt->bindParam(':id', $dt_id, PDO::PARAM_INT);
+            $stmt->execute();
+            $count_res = $stmt->fetch();
+            $log_count = $count_res["cnti"];
+            
+            // レコードが存在する場合のみ削除
+            if($log_count !== 0) {
+                $stmt = $db->prepare("DELETE FROM uplog WHERE id = :id");
+                $stmt->bindParam(':id', $dt_id, PDO::PARAM_INT);
+                $stmt->execute();
+            }
+        }
+        
+        $db = null; //db切断
+    } catch (PDOException $e) {
+        echo "DB接続エラー:" .$e->getMessage();
+    }
 }
 
 //文字コード変換
