@@ -320,6 +320,15 @@ function def() {
       return $files;
     });
 
+    //総サイズを計算
+    $total_size = calculate_total_size($file_list);
+    $dat['total_size'] = $total_size;
+    $dat['total_size_formatted'] = format_file_size($total_size);
+    
+    //ファイル数を計算
+    $file_count = count($file_list);
+    $dat['file_count'] = $file_count;
+
     $dat['file_list'] = $file_list;
     echo $blade->run(MAINFILE,$dat);
   } catch (PDOException $e) {
@@ -380,6 +389,29 @@ function log_del() {
 function charconvert($str) {
   mb_language(LANG);
   return mb_convert_encoding($str, "UTF-8", "auto");
+}
+
+//総サイズを計算する関数
+function calculate_total_size($file_list) {
+  $total_size = 0;
+  foreach ($file_list as $file) {
+    $file_path = UP_DIR . '/' . $file['upfile'];
+    if (file_exists($file_path)) {
+      $total_size += filesize($file_path);
+    }
+  }
+  return $total_size;
+}
+
+//ファイルサイズをフォーマットする関数
+function format_file_size($size) {
+  $units = array('B', 'KB', 'MB', 'GB', 'TB');
+  $i = 0;
+  while ($size >= 1024 && $i < count($units) - 1) {
+    $size /= 1024;
+    $i++;
+  }
+  return round($size, 2) . ' ' . $units[$i];
 }
 
 //リザルト画面

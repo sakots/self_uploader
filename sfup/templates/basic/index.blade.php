@@ -44,6 +44,7 @@
     <div>
       <div class="files">
         <div class="contain">
+          <p>ファイル数: {{$file_count}}個 / 総サイズ: {{$total_size_formatted}}</p>
           <ul>
             @foreach ($file_list as $files)
             <li><a href="{{$path}}/{{$files['upfile']}}" target="_top" rel="noopener noreferrer">{{$files['upfile']}}</a></li>
