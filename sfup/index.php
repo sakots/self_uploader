@@ -209,7 +209,7 @@ function upload() {
 
   if($req_method !== "POST") {error('投稿形式が不正です。'); }
 
-  if(UP_AUTH === '0' && (filter_input(INPUT_POST, 'authword') !== $admin_pass || filter_input(INPUT_POST, 'authword') !== $watchword)) {
+  if(UP_AUTH === '0' && (filter_input(INPUT_POST, 'authword') !== $admin_pass && filter_input(INPUT_POST, 'authword') !== $watchword)) {
     error('合言葉が違います。アップロードできません。');
   }
   $userip = get_uip();
@@ -237,6 +237,13 @@ function upload() {
       }
       //拡張子チェック
       if(preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', pathinfo($origin_file, PATHINFO_EXTENSION))) {
+        //MIME typeチェック
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime_type = finfo_file($finfo, $tmp_file);
+        finfo_close($finfo);
+        
+        $allowed_mimes = explode(', ', ACCEPT_FILETYPE);
+        if(in_array($mime_type, $allowed_mimes)) {
         try {
           execute_db_operation(function($db) use ($userip, $upfile, $invz) {
             $stmt = $db->prepare("INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), :host, :upfile, :invz)");
@@ -247,7 +254,11 @@ function upload() {
           });
           $ok_num++;
         } catch (PDOException $e) {
-          echo "DB接続エラー:" .$e->getMessage();
+          error("データベースエラーが発生しました。");
+        }
+        } else {
+          $ng_message .= $origin_file.'(規定外のMIME typeなので削除), ';
+          unlink($dest);
         }
       } else {
         $ng_message .= $origin_file.'(規定外の拡張子なので削除), ';
