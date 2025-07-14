@@ -1,6 +1,6 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.1.0～
+//  SELF UPLOADER v0.1.3
 //  by sakots >> https://dev.oekakibbs.net/
 //
 //  SELF UPLOADER の設定ファイルです。
@@ -84,4 +84,4 @@ define('PHP_SELF', 'index.php');
 
 /* ------------- コンフィグ互換性管理 ------------- */
 
-define('CONF_VER', 1);
+define('CONF_VER', 20250714);

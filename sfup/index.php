@@ -5,7 +5,7 @@
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.1.2'); //lot.250609.1
+define('SFUP_VER','v0.1.3'); //lot.250714.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -15,11 +15,11 @@ require_once (__DIR__.'/templates/'.THEME_DIR.'/theme.ini.php');
 date_default_timezone_set(DEFAULT_TIMEZONE);
 
 //phpのバージョンが古い場合動作させない
-if (($php_ver = phpversion()) < "5.6.0") {
-  die("PHP version 5.6.0 or higher is required for this program to work. <br>\n(Current PHP version:{$php_ver})");
+if (($php_ver = phpversion()) < "7.4.0") {
+  die("PHP version 7.4.0 or higher is required for this program to work. <br>\n(Current PHP version:{$php_ver})");
 }
 //コンフィグのバージョンが古くて互換性がない場合動作させない
-if (CONF_VER < 1 || !defined('CONF_VER')) {
+if (CONF_VER < 20250714 || !defined('CONF_VER')) {
   die("コンフィグファイルに互換性がないようです。再設定をお願いします。<br>\n The configuration file is incompatible. Please reconfigure it.");
 }
 //管理パスが初期値(kanripass)の場合は動作させない
