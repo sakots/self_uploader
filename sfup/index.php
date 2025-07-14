@@ -222,10 +222,10 @@ function upload() {
     error('ファイルがないです。');
     exit;
   }
+  $ok_num = 0; // 成功したファイル数をカウント
   for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
     $origin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
     $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
-    $ok_num = 0;
     if($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
       $extension = pathinfo($origin_file, PATHINFO_EXTENSION);
       $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extension;
@@ -317,7 +317,7 @@ function def() {
       log_del();
     }
 
-    //ファイル一覧を取得
+    //ファイル一覧を取得（実際に存在するファイルのみ）
     $file_list = execute_db_operation(function($db) {
       $stmt = $db->prepare("SELECT * FROM uplog WHERE invz = :invz ORDER BY id DESC");
       $invz = '0';
@@ -326,7 +326,10 @@ function def() {
       
       $files = array();
       while ($row = $stmt->fetch()) {
-        $files[] = $row;
+        $file_path = UP_DIR . '/' . $row['upfile'];
+        if (file_exists($file_path)) {
+          $files[] = $row;
+        }
       }
       return $files;
     });
