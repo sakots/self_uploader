@@ -52,7 +52,7 @@ define('UP_AUTH', '0');
 define('UP_MAX_MB', '15');
 
 //アップロード可能なファイルのmimetype。', 'で区切ってください。
-define('ACCEPT_FILETYPE', 'audio/mpeg, audio/aac, audio/mp4, audio/ogg, audio/flac');
+define('ACCEPT_FILETYPE', 'audio/mpeg, audio/aac, audio/mp4, audio/ogg, audio/flac, audio/mpeg');
 
 //アップロード可能なファイルの拡張子。'|'（パイプ）で区切ってください。
 define('ACCEPT_FILE_EXTN', 'mp3|m4a|aac|opus|ogg|flac');
