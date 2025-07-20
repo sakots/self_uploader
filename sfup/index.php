@@ -226,46 +226,56 @@ function upload() {
   for ($i = 0; $i < count($_FILES['upfile']['name']); $i++) {
     $origin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
     $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
-    if($_FILES['upfile']['size'][$i] < UP_MAX_SIZE) {
-      $extension = pathinfo($origin_file, PATHINFO_EXTENSION);
-      $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extension;
-      $dest = UP_DIR.'/'.$upfile;
-      move_uploaded_file($tmp_file, $dest);
-      chmod($dest, PERMISSION_FOR_DEST);
-      if(!is_file($dest)) {
-        $ng_message .= $origin_file.'(正常にコピーできませんでした。), ';
-      }
-      //拡張子チェック
-      if(preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', pathinfo($origin_file, PATHINFO_EXTENSION))) {
-        //MIME typeチェック
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime_type = finfo_file($finfo, $tmp_file);
-        finfo_close($finfo);
-        
-        $allowed_mimes = explode(', ', ACCEPT_FILETYPE);
-        if(in_array($mime_type, $allowed_mimes)) {
-        try {
-          execute_db_operation(function($db) use ($userip, $upfile, $invz) {
-            $stmt = $db->prepare("INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), :host, :upfile, :invz)");
-            $stmt->bindParam(':host', $userip, PDO::PARAM_STR);
-            $stmt->bindParam(':upfile', $upfile, PDO::PARAM_STR);
-            $stmt->bindParam(':invz', $invz, PDO::PARAM_STR);
-            return $stmt->execute();
-          });
-          $ok_num++;
-        } catch (PDOException $e) {
-          error("データベースエラーが発生しました。");
-        }
-        } else {
-          $ng_message .= $origin_file.'(規定外のMIME typeなので削除), ';
-          unlink($dest);
-        }
-      } else {
-        $ng_message .= $origin_file.'(規定外の拡張子なので削除), ';
-        unlink($dest);
-      }
-    } else {
+    
+    // ファイルサイズチェック
+    if($_FILES['upfile']['size'][$i] >= UP_MAX_SIZE) {
       $ng_message .= $origin_file.'(設定されたファイルサイズをオーバー), ';
+      continue;
+    }
+    
+    // 拡張子チェック
+    $extension = pathinfo($origin_file, PATHINFO_EXTENSION);
+    if(!preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', $extension)) {
+      $ng_message .= $origin_file.'(規定外の拡張子), ';
+      continue;
+    }
+    
+    // MIME typeチェック
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime_type = finfo_file($finfo, $tmp_file);
+    finfo_close($finfo);
+    
+    $allowed_mimes = explode(', ', ACCEPT_FILETYPE);
+    if(!in_array($mime_type, $allowed_mimes)) {
+      $ng_message .= $origin_file.'(規定外のMIME type: ' . $mime_type . '), ';
+      continue;
+    }
+    
+    // ファイル移動
+    $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extension;
+    $dest = UP_DIR.'/'.$upfile;
+    
+    if(!move_uploaded_file($tmp_file, $dest)) {
+      $ng_message .= $origin_file.'(正常にコピーできませんでした。), ';
+      continue;
+    }
+    
+    chmod($dest, PERMISSION_FOR_DEST);
+    
+    // データベースに保存
+    try {
+      execute_db_operation(function($db) use ($userip, $upfile, $invz) {
+        $stmt = $db->prepare("INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), :host, :upfile, :invz)");
+        $stmt->bindParam(':host', $userip, PDO::PARAM_STR);
+        $stmt->bindParam(':upfile', $upfile, PDO::PARAM_STR);
+        $stmt->bindParam(':invz', $invz, PDO::PARAM_STR);
+        return $stmt->execute();
+      });
+      $ok_num++;
+    } catch (PDOException $e) {
+      // データベースエラーの場合はファイルも削除
+      unlink($dest);
+      error("データベースエラーが発生しました。");
     }
   }
   //ログ行数オーバー処理
