@@ -5,7 +5,7 @@
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.1.4'); //lot.250720.0
+define('SFUP_VER','v0.1.5'); //lot.250826.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -117,6 +117,10 @@ function init() {
   if (!is_dir(TEMP_DIR)) {
     mkdir(TEMP_DIR, PERMISSION_FOR_DIR);
     chmod(TEMP_DIR, PERMISSION_FOR_DIR);
+  }
+  if (!is_dir('./cache')) {
+    mkdir('./cache', PERMISSION_FOR_DIR);
+    chmod('./cache', PERMISSION_FOR_DIR);
   }
   if(!is_dir(TEMP_DIR)) $err.= TEMP_DIR."がありません<br>";
   if(!is_writable(TEMP_DIR)) $err.= TEMP_DIR."を書けません<br>";
