@@ -4,7 +4,11 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  @if ($othermode == 'result')
+  <meta http-equiv="refresh" content="1;url=./">
+  @elseif ($othermode == 'err')
   <meta http-equiv="refresh" content="7;url=./">
+  @endif
   <title>{{$title}}</title>
   <link rel="stylesheet" href="templates/{{$theme_dir}}/css/base.min.css">
 </head>

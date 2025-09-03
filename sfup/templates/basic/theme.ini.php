@@ -8,7 +8,7 @@
 define('THEME_NAME', "basic");
 
 //テーマのバージョン
-define('THEME_VER', "v0.0.0 lot.211026.0");
+define('THEME_VER', "v0.0.1 lot.250903.0");
 
 /* -------------------- */
 
