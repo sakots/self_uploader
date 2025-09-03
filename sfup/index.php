@@ -1,11 +1,11 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.1.6
+//  SELF UPLOADER v0.1.7
 //  by sakots https://dev.oekakibbs.net/
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.1.6'); //lot.250903.0
+define('SFUP_VER','v0.1.7'); //lot.250903.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
