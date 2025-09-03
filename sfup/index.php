@@ -1,11 +1,11 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.1.0
+//  SELF UPLOADER v0.1.6
 //  by sakots https://dev.oekakibbs.net/
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.1.5'); //lot.250826.0
+define('SFUP_VER','v0.1.6'); //lot.250903.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -19,7 +19,7 @@ if (($php_ver = phpversion()) < "7.4.0") {
   die("PHP version 7.4.0 or higher is required for this program to work. <br>\n(Current PHP version:{$php_ver})");
 }
 //コンフィグのバージョンが古くて互換性がない場合動作させない
-if (CONF_VER < 20250714 || !defined('CONF_VER')) {
+if (CONF_VER < 20250903 || !defined('CONF_VER')) {
   die("コンフィグファイルに互換性がないようです。再設定をお願いします。<br>\n The configuration file is incompatible. Please reconfigure it.");
 }
 //管理パスが初期値(kanripass)の場合は動作させない
@@ -94,6 +94,8 @@ exit;
 function init() {
   if(!is_writable(realpath("./"))) error("カレントディレクトリに書けません<br>");
   $err='';
+  
+  // データベース初期化
   try {
     if (!is_file(DB_NAME.'.db')) {
       // はじめての実行なら、テーブルを作成
@@ -106,26 +108,40 @@ function init() {
   } catch (PDOException $e) {
     echo "DB接続エラー:" .$e->getMessage();
   }
-  if (!is_dir(UP_DIR)) {
-    mkdir(UP_DIR, PERMISSION_FOR_DIR);
-    chmod(UP_DIR, PERMISSION_FOR_DIR);
+  
+  // ディレクトリの作成と権限設定
+  $directories = array(
+    UP_DIR => 'アップロード',
+    TEMP_DIR => '一時ファイル',
+    './cache' => 'キャッシュ'
+  );
+  
+  foreach ($directories as $dir => $dir_name) {
+    if (!is_dir($dir)) {
+      if (!mkdir($dir, PERMISSION_FOR_DIR)) {
+        $err .= $dir_name . "ディレクトリの作成に失敗しました<br>";
+        continue;
+      }
+    }
+    
+    // ディレクトリの権限を設定
+    if (!chmod($dir, PERMISSION_FOR_DIR)) {
+      $err .= $dir_name . "ディレクトリの権限設定に失敗しました<br>";
+    }
+    
+    // ディレクトリの安全性をチェック
+    $validation_errors = validate_directory($dir, $dir_name);
+    foreach ($validation_errors as $error) {
+      $err .= $error . "<br>";
+    }
   }
-  if(!is_dir(UP_DIR)) $err.= UP_DIR."がありません<br>";
-  if(!is_writable(UP_DIR)) $err.= UP_DIR."を書けません<br>";
-  if(!is_readable(UP_DIR)) $err.= UP_DIR."を読めません<br>";
-
-  if (!is_dir(TEMP_DIR)) {
-    mkdir(TEMP_DIR, PERMISSION_FOR_DIR);
-    chmod(TEMP_DIR, PERMISSION_FOR_DIR);
-  }
-  if (!is_dir('./cache')) {
-    mkdir('./cache', PERMISSION_FOR_DIR);
-    chmod('./cache', PERMISSION_FOR_DIR);
-  }
-  if(!is_dir(TEMP_DIR)) $err.= TEMP_DIR."がありません<br>";
-  if(!is_writable(TEMP_DIR)) $err.= TEMP_DIR."を書けません<br>";
-  if(!is_readable(TEMP_DIR)) $err.= TEMP_DIR."を読めません<br>";
+  
   if($err) error($err);
+  
+  // ファイル整合性チェック（定期的に実行）
+  if (ENABLE_FILE_INTEGRITY_CHECK === '1') {
+    check_file_integrity();
+  }
 }
 
 //ユーザーip
@@ -231,39 +247,30 @@ function upload() {
     $origin_file = isset($_FILES['upfile']['name'][$i]) ? basename($_FILES['upfile']['name'][$i]) : "";
     $tmp_file = isset($_FILES['upfile']['tmp_name'][$i]) ? $_FILES['upfile']['tmp_name'][$i] : "";
     
-    // ファイルサイズチェック
-    if($_FILES['upfile']['size'][$i] >= UP_MAX_SIZE) {
-      $ng_message .= $origin_file.'(設定されたファイルサイズをオーバー), ';
-      continue;
-    }
+    // ファイル名のサニタイズ
+    $origin_file = sanitize_filename($origin_file);
     
-    // 拡張子チェック
+    // 拡張子の取得
     $extension = pathinfo($origin_file, PATHINFO_EXTENSION);
-    if(!preg_match('/\A('.ACCEPT_FILE_EXTN.')\z/i', $extension)) {
-      $ng_message .= $origin_file.'(規定外の拡張子), ';
+    
+    // 包括的なファイル検証
+    $validation_result = validate_uploaded_file($tmp_file, $origin_file, $extension);
+    if (!$validation_result['valid']) {
+      $ng_message .= $origin_file.'(' . $validation_result['message'] . '), ';
       continue;
     }
     
-    // MIME typeチェック
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mime_type = finfo_file($finfo, $tmp_file);
-    finfo_close($finfo);
-    
-    $allowed_mimes = explode(', ', ACCEPT_FILETYPE);
-    if(!in_array($mime_type, $allowed_mimes)) {
-      $ng_message .= $origin_file.'(規定外のMIME type: ' . $mime_type . '), ';
-      continue;
-    }
-    
-    // ファイル移動
+    // 安全なファイル名の生成
     $upfile = date("Ymd_His").mt_rand(1000,9999).'.'.$extension;
     $dest = UP_DIR.'/'.$upfile;
     
+    // ファイル移動（追加のセキュリティチェック付き）
     if(!move_uploaded_file($tmp_file, $dest)) {
       $ng_message .= $origin_file.'(正常にコピーできませんでした。), ';
       continue;
     }
     
+    // ファイル権限の設定
     chmod($dest, PERMISSION_FOR_DEST);
     
     // データベースに保存
@@ -276,11 +283,33 @@ function upload() {
         return $stmt->execute();
       });
       $ok_num++;
-    } catch (PDOException $e) {
-      // データベースエラーの場合はファイルも削除
-      unlink($dest);
-      error("データベースエラーが発生しました。");
-    }
+      
+      // 最終的なセキュリティチェック：アップロードされたファイルの再検証
+      if (!file_exists($dest) || !is_readable($dest)) {
+        throw new Exception('アップロードされたファイルの検証に失敗しました');
+      }
+      
+      // ファイルサイズの最終確認
+      $final_size = filesize($dest);
+      if ($final_size === false || $final_size >= UP_MAX_SIZE) {
+        unlink($dest);
+        throw new Exception('アップロード後のファイルサイズ検証に失敗しました');
+      }
+      
+         } catch (PDOException $e) {
+       // データベースエラーの場合はファイルも削除
+       if (file_exists($dest)) {
+         safe_delete_file($dest);
+       }
+       error("データベースエラーが発生しました。");
+     } catch (Exception $e) {
+       // その他のエラーの場合もファイルを削除
+       if (file_exists($dest)) {
+         safe_delete_file($dest);
+       }
+       $ng_message .= $origin_file.'(' . $e->getMessage() . '), ';
+       continue;
+     }
   }
   //ログ行数オーバー処理
   try {
@@ -368,16 +397,168 @@ function def() {
 
 /* テンポラリ内のゴミ除去 */
 function deltemp() {
+  if (!is_dir(TEMP_DIR) || !is_readable(TEMP_DIR)) {
+    return false;
+  }
+  
   $handle = opendir(TEMP_DIR);
-  while ($file = readdir($handle)) {
-    if(!is_dir($file)) {
-      $lapse = time() - filemtime(TEMP_DIR.'/'.$file);
-      if($lapse > (24*3600)){
-        unlink(TEMP_DIR.'/'.$file);
+  if ($handle === false) {
+    return false;
+  }
+  
+  $cleaned_count = 0;
+  $error_count = 0;
+  
+  while (($file = readdir($handle)) !== false) {
+    // . と .. をスキップ
+    if ($file === '.' || $file === '..') {
+      continue;
+    }
+    
+    $file_path = TEMP_DIR . '/' . $file;
+    
+    // ファイルかどうかを確認
+    if (is_file($file_path)) {
+      $file_time = filemtime($file_path);
+      $current_time = time();
+      
+      // 24時間以上古いファイルを削除
+      if (($current_time - $file_time) > (24 * 3600)) {
+        if (unlink($file_path)) {
+          $cleaned_count++;
+        } else {
+          $error_count++;
+        }
       }
     }
   }
   closedir($handle);
+  
+  // クリーンアップ結果をログに記録（オプション）
+  if ($cleaned_count > 0 || $error_count > 0) {
+    error_log("TEMP cleanup: {$cleaned_count} files cleaned, {$error_count} errors");
+  }
+  
+  return true;
+}
+
+// 安全なファイル削除関数
+function safe_delete_file($file_path) {
+  if (!file_exists($file_path)) {
+    return true; // ファイルが存在しない場合は成功とみなす
+  }
+  
+  // ファイルパスの安全性チェック
+  $real_path = realpath($file_path);
+  $up_dir_real = realpath(UP_DIR);
+  
+  // アップロードディレクトリ外のファイルは削除しない
+  if ($real_path === false || $up_dir_real === false || strpos($real_path, $up_dir_real) !== 0) {
+    error_log("Attempted to delete file outside upload directory: " . $file_path);
+    return false;
+  }
+  
+  // ファイルの権限を確認
+  if (!is_writable($file_path)) {
+    error_log("Cannot delete file (not writable): " . $file_path);
+    return false;
+  }
+  
+  return unlink($file_path);
+}
+
+// ディレクトリの安全性チェック
+function validate_directory($dir_path, $dir_name) {
+  $errors = array();
+  
+  if (!is_dir($dir_path)) {
+    $errors[] = $dir_name . "ディレクトリが存在しません";
+  } else {
+    if (!is_writable($dir_path)) {
+      $errors[] = $dir_name . "ディレクトリに書き込み権限がありません";
+    }
+    if (!is_readable($dir_path)) {
+      $errors[] = $dir_name . "ディレクトリに読み取り権限がありません";
+    }
+    
+    // ディレクトリの所有者と権限をチェック
+    $perms = fileperms($dir_path);
+    if (($perms & 0x0200) === 0) { // 所有者の書き込み権限がない
+      $errors[] = $dir_name . "ディレクトリの権限が適切ではありません";
+    }
+  }
+  
+  return $errors;
+}
+
+// ファイル管理の整合性チェック
+function check_file_integrity() {
+  try {
+    $orphaned_files = 0;
+    $missing_files = 0;
+    
+    // データベースに記録されているが実際には存在しないファイルをチェック
+    $db_files = execute_db_operation(function($db) {
+      $stmt = $db->prepare("SELECT upfile FROM uplog WHERE invz = '0'");
+      $stmt->execute();
+      return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    });
+    
+    foreach ($db_files as $db_file) {
+      $file_path = UP_DIR . '/' . $db_file;
+      if (!file_exists($file_path)) {
+        $missing_files++;
+        // データベースから該当レコードを削除
+        execute_db_operation(function($db) use ($db_file) {
+          $stmt = $db->prepare("DELETE FROM uplog WHERE upfile = :upfile");
+          $stmt->bindParam(':upfile', $db_file, PDO::PARAM_STR);
+          return $stmt->execute();
+        });
+      }
+    }
+    
+    // アップロードディレクトリ内の孤立したファイルをチェック
+    if (is_dir(UP_DIR) && is_readable(UP_DIR)) {
+      $handle = opendir(UP_DIR);
+      if ($handle !== false) {
+        while (($file = readdir($handle)) !== false) {
+          if ($file === '.' || $file === '..') {
+            continue;
+          }
+          
+          $file_path = UP_DIR . '/' . $file;
+          if (is_file($file_path)) {
+            // データベースに記録されているかチェック
+            $exists_in_db = execute_db_operation(function($db) use ($file) {
+              $stmt = $db->prepare("SELECT COUNT(*) FROM uplog WHERE upfile = :upfile");
+              $stmt->bindParam(':upfile', $file, PDO::PARAM_STR);
+              $stmt->execute();
+              return $stmt->fetchColumn() > 0;
+            });
+            
+            if (!$exists_in_db) {
+              $orphaned_files++;
+              // 孤立したファイルを削除（オプション）
+              if (ENABLE_ORPHANED_FILE_CLEANUP === '1') {
+                safe_delete_file($file_path);
+              }
+            }
+          }
+        }
+        closedir($handle);
+      }
+    }
+    
+    // 整合性チェックの結果をログに記録
+    if ($missing_files > 0 || $orphaned_files > 0) {
+      error_log("File integrity check: {$missing_files} missing files, {$orphaned_files} orphaned files");
+    }
+    
+    return array('missing' => $missing_files, 'orphaned' => $orphaned_files);
+  } catch (Exception $e) {
+    error_log("File integrity check error: " . $e->getMessage());
+    return array('missing' => 0, 'orphaned' => 0);
+  }
 }
 
 //ログの行数が最大値を超えていたら削除
@@ -385,12 +566,13 @@ function log_del() {
   try {
     execute_db_operation(function($db) {
       // 最も古いレコードのIDを取得
-      $stmt = $db->prepare("SELECT id FROM uplog ORDER BY id LIMIT 1");
+      $stmt = $db->prepare("SELECT id, upfile FROM uplog ORDER BY id LIMIT 1");
       $stmt->execute();
       $msg = $stmt->fetch();
       
       if ($msg) {
         $dt_id = (int)$msg["id"];
+        $upfile = $msg["upfile"];
         
         // 該当IDのレコード数をカウント
         $stmt = $db->prepare("SELECT COUNT(*) as cnti FROM uplog WHERE id = :id");
@@ -401,9 +583,16 @@ function log_del() {
         
         // レコードが存在する場合のみ削除
         if($log_count !== 0) {
+          // データベースからレコードを削除
           $stmt = $db->prepare("DELETE FROM uplog WHERE id = :id");
           $stmt->bindParam(':id', $dt_id, PDO::PARAM_INT);
           $stmt->execute();
+          
+          // 対応するファイルも削除
+          if (!empty($upfile)) {
+            $file_path = UP_DIR . '/' . $upfile;
+            safe_delete_file($file_path);
+          }
         }
       }
       return true;
@@ -467,4 +656,154 @@ function error($mes) {
 	$dat['othermode'] = 'err';
   echo $blade->run(OTHERFILE,$dat);
   exit;
+}
+
+// ファイルアップロードのセキュリティ検証関数
+function validate_uploaded_file($tmp_file, $origin_file, $extension) {
+  // 1. ファイルサイズの基本チェック
+  if (!is_uploaded_file($tmp_file)) {
+    return array('valid' => false, 'message' => '不正なアップロードファイルです');
+  }
+  
+  // 2. ファイルサイズの詳細チェック
+  $file_size = filesize($tmp_file);
+  if ($file_size === false || $file_size === 0) {
+    return array('valid' => false, 'message' => 'ファイルサイズの取得に失敗しました');
+  }
+  
+  if ($file_size >= UP_MAX_SIZE) {
+    return array('valid' => false, 'message' => '設定されたファイルサイズをオーバーしています');
+  }
+  
+  // 3. 拡張子の厳密なチェック
+  $extension = strtolower($extension);
+  $allowed_extensions = explode('|', strtolower(ACCEPT_FILE_EXTN));
+  if (!in_array($extension, $allowed_extensions)) {
+    return array('valid' => false, 'message' => '規定外の拡張子です');
+  }
+  
+  // 4. ファイルヘッダーの検証
+  $file_handle = fopen($tmp_file, 'rb');
+  if ($file_handle === false) {
+    return array('valid' => false, 'message' => 'ファイルの読み込みに失敗しました');
+  }
+  
+  // ファイルの先頭部分を読み込み
+  $header = fread($file_handle, 16);
+  fclose($file_handle);
+  
+  // 5. 危険なファイルシグネチャの検出
+  $dangerous_signatures = array(
+    // PHPファイル
+    '<?php', '<?=', '<? ',
+    // 実行可能ファイル
+    "\x4D\x5A", // MZ (Windows PE)
+    "\x7F\x45\x4C\x46", // ELF (Linux)
+    "\xFE\xED\xFA", // Mach-O (macOS)
+    // スクリプトファイル
+    '#!', // Shebang
+    // その他の危険なファイル
+    "\x50\x4B\x03\x04", // ZIP (潜在的に危険)
+  );
+  
+  foreach ($dangerous_signatures as $signature) {
+    if (strpos($header, $signature) === 0) {
+      return array('valid' => false, 'message' => '危険なファイル形式が検出されました');
+    }
+  }
+  
+  // 6. より厳密なMIME typeチェック
+  $finfo = finfo_open(FILEINFO_MIME_TYPE);
+  $mime_type = finfo_file($finfo, $tmp_file);
+  finfo_close($finfo);
+  
+  if ($mime_type === false) {
+    return array('valid' => false, 'message' => 'MIME typeの取得に失敗しました');
+  }
+  
+  $allowed_mimes = explode(', ', ACCEPT_FILETYPE);
+  $mime_found = false;
+  
+  foreach ($allowed_mimes as $allowed_mime) {
+    if (trim($allowed_mime) === $mime_type) {
+      $mime_found = true;
+      break;
+    }
+  }
+  
+  if (!$mime_found) {
+    return array('valid' => false, 'message' => '規定外のMIME type: ' . $mime_type);
+  }
+  
+  // 7. ファイル拡張子とMIME typeの整合性チェック
+  $expected_mime_map = array(
+    'mp3' => 'audio/mpeg',
+    'm4a' => 'audio/mp4',
+    'aac' => 'audio/aac',
+    'opus' => 'audio/ogg',
+    'ogg' => 'audio/ogg',
+    'flac' => 'audio/flac'
+  );
+  
+  if (isset($expected_mime_map[$extension]) && $expected_mime_map[$extension] !== $mime_type) {
+    return array('valid' => false, 'message' => 'ファイル拡張子とMIME typeが一致しません');
+  }
+  
+  // 8. ファイル内容の追加検証（オーディオファイルの場合）
+  if (strpos($mime_type, 'audio/') === 0) {
+    $validation_result = validate_audio_file($tmp_file, $extension);
+    if (!$validation_result['valid']) {
+      return $validation_result;
+    }
+  }
+  
+  return array('valid' => true, 'message' => '検証完了');
+}
+
+// オーディオファイルの詳細検証
+function validate_audio_file($tmp_file, $extension) {
+  $file_handle = fopen($tmp_file, 'rb');
+  if ($file_handle === false) {
+    return array('valid' => false, 'message' => 'ファイルの読み込みに失敗しました');
+  }
+  
+  $header = fread($file_handle, 32);
+  fclose($file_handle);
+  
+  // 各オーディオ形式のシグネチャをチェック
+  $audio_signatures = array(
+    'mp3' => array("\xFF\xFB", "\xFF\xF3", "\xFF\xF2", "\x49\x44\x33"), // MP3
+    'm4a' => array("\x00\x00\x00\x20\x66\x74\x79\x70", "\x00\x00\x00\x18\x66\x74\x79\x70"), // M4A
+    'aac' => array("\xFF\xF1", "\xFF\xF9"), // AAC
+    'ogg' => array("OggS"), // OGG
+    'flac' => array("fLaC") // FLAC
+  );
+  
+  if (isset($audio_signatures[$extension])) {
+    $signature_found = false;
+    foreach ($audio_signatures[$extension] as $signature) {
+      if (strpos($header, $signature) !== false) {
+        $signature_found = true;
+        break;
+      }
+    }
+    
+    if (!$signature_found) {
+      return array('valid' => false, 'message' => 'オーディオファイルの形式が正しくありません');
+    }
+  }
+  
+  return array('valid' => true, 'message' => 'オーディオファイル検証完了');
+}
+
+// ファイル名のサニタイズ
+function sanitize_filename($filename) {
+  // 危険な文字を除去
+  $filename = preg_replace('/[^\w\-\.]/', '_', $filename);
+  // 連続するアンダースコアを単一に
+  $filename = preg_replace('/_+/', '_', $filename);
+  // 先頭と末尾のアンダースコアを除去
+  $filename = trim($filename, '_');
+  
+  return $filename;
 }

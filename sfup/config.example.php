@@ -1,6 +1,6 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.1.3
+//  SELF UPLOADER v0.1.6
 //  by sakots >> https://dev.oekakibbs.net/
 //
 //  SELF UPLOADER の設定ファイルです。
@@ -78,10 +78,29 @@ define('PERMISSION_FOR_DIR', 0755);//初期値 0755 (所有者読み書き実行
 //する:1 にすると外部サイトからの不正な投稿を拒絶することができます
 define('CHECK_CSRF_TOKEN', '1');
 
+// セキュリティ強化設定
+// ファイルアップロードの詳細検証を有効にする 有効:1 無効:0
+define('ENABLE_DETAILED_VALIDATION', '1');
+
+// 危険なファイルの検出を有効にする 有効:1 無効:0
+define('ENABLE_DANGEROUS_FILE_DETECTION', '1');
+
+// ファイルヘッダー検証を有効にする 有効:1 無効:0
+define('ENABLE_HEADER_VALIDATION', '1');
+
+// オーディオファイルの詳細検証を有効にする 有効:1 無効:0
+define('ENABLE_AUDIO_VALIDATION', '1');
+
+// ファイル整合性チェックを有効にする 有効:1 無効:0
+define('ENABLE_FILE_INTEGRITY_CHECK', '1');
+
+// 孤立したファイルの自動削除を有効にする 有効:1 無効:0
+define('ENABLE_ORPHANED_FILE_CLEANUP', '1');
+
 /* ------------- できれば変更してほしくないところ ------------- */
 //スクリプト名
 define('PHP_SELF', 'index.php');
 
 /* ------------- コンフィグ互換性管理 ------------- */
 
-define('CONF_VER', 20250714);
+define('CONF_VER', 20250903);
