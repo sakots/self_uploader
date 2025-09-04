@@ -37,7 +37,7 @@ define('THEME_DIR', 'basic');
 
 //最大ファイル保持数
 //古いファイルから順番に消えます
-define('LOG_MAX', '75');
+define('LOG_MAX', '400');
 
 //アップロードファイル保存ディレクトリ名
 define('UP_DIR', 'upfile');
