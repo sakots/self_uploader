@@ -5,7 +5,7 @@
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.2.1'); //lot.250904.1
+define('SFUP_VER','v0.2.2'); //lot.250904.2
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -718,8 +718,8 @@ function upload() {
         }
       }
       
-      // 重複チェック
-      if (ENABLE_DUPLICATE_CHECK === '1') {
+      // 重複チェック（設定で無効化可能）
+      if (defined('ENABLE_DUPLICATE_CHECK') && ENABLE_DUPLICATE_CHECK === '1') {
         $dup_result = check_duplicate_file($dest);
         if (!$dup_result['valid']) {
           safe_delete_file($dest);
@@ -1515,11 +1515,23 @@ function antivirus_scan($tmp_file) {
 function check_duplicate_file($tmp_file) {
   $file_hash = hash_file('sha256', $tmp_file);
   
+  // デバッグ用ログ
+  if (defined('ENABLE_SECURITY_LOGGING') && ENABLE_SECURITY_LOGGING === '1') {
+    log_security_event('DUPLICATE_CHECK', "File: $tmp_file, Hash: $file_hash", 'INFO');
+  }
+  
   try {
     $result = execute_db_operation(function($db) use ($file_hash) {
-      $stmt = $db->prepare("SELECT COUNT(*) FROM uplog WHERE file_hash = ?");
+      $stmt = $db->prepare("SELECT COUNT(*) FROM uplog WHERE file_hash = ? AND file_hash IS NOT NULL");
       $stmt->execute([$file_hash]);
-      return $stmt->fetchColumn() > 0;
+      $count = $stmt->fetchColumn();
+      
+      // デバッグ用ログ
+      if (defined('ENABLE_SECURITY_LOGGING') && ENABLE_SECURITY_LOGGING === '1') {
+        log_security_event('DUPLICATE_CHECK_RESULT', "Hash: $file_hash, Count: $count", 'INFO');
+      }
+      
+      return $count > 0;
     });
     
     if ($result) {

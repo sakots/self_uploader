@@ -115,7 +115,7 @@ define('ENABLE_DEEP_SCAN', '1');
 define('ENABLE_ANTIVIRUS_SCAN', '1');
 
 // ファイル重複チェックを有効にする 有効:1 無効:0
-define('ENABLE_DUPLICATE_CHECK', '1');
+define('ENABLE_DUPLICATE_CHECK', '0');
 
 // 高度なファイル整合性チェックを有効にする 有効:1 無効:0
 define('ENABLE_ADVANCED_INTEGRITY_CHECK', '1');
