@@ -59,7 +59,7 @@
   <!-- 著作権表示 -->
   <div class="copy">
     <p>
-      SELF UPLOADER {{$ver}} &copy; 2021 sakots
+      SELF UPLOADER {{$ver}} &copy; 2021-2025 sakots
       <a href="https://github.com/sakots/self_uploader" class="github"><svg viewBox="0 0 496 512"><use href="templates/{{$theme_dir}}/icons/github.svg#github"></svg>github</a>
     </p>
     <p>
