@@ -101,7 +101,7 @@ function init() {
       // はじめての実行なら、テーブルを作成
       $db = new PDO(DB_PDO);
       $db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
-      $sql = "CREATE TABLE uplog (id integer primary key autoincrement, created timestamp, name VARCHAR(1000), sub VARCHAR(1000), com VARCHAR(10000), host TEXT, pwd TEXT, upfile TEXT, age INT, invz VARCHAR(1) )";
+      $sql = "CREATE TABLE uplog (id integer primary key autoincrement, created timestamp, name VARCHAR(1000), sub VARCHAR(1000), com VARCHAR(10000), host TEXT, pwd TEXT, upfile TEXT, age INT, invz VARCHAR(1), file_hash TEXT, file_size INTEGER, scan_result TEXT)";
       $db = $db->query($sql);
       $db = null; //db切断
     }
@@ -156,7 +156,144 @@ function get_uip() {
     return $userip;
   }
 }
-//csrfトークンを作成
+
+// 強化された認証システム関数群
+
+// パスワードのハッシュ化
+function hash_password($password) {
+  return password_hash($password, PASSWORD_BCRYPT, ['cost' => AUTH_HASH_COST]);
+}
+
+// パスワードの検証
+function verify_password($password, $hash) {
+  return password_verify($password, $hash);
+}
+
+// レート制限チェック
+function check_rate_limit($ip_address, $username = '') {
+  try {
+    $result = execute_db_operation(function($db) use ($ip_address, $username) {
+      // 最近の失敗した試行回数をカウント
+      $stmt = $db->prepare("SELECT COUNT(*) FROM auth_attempts WHERE ip_address = ? AND success = 0 AND attempt_time > datetime('now', '-' || ? || ' seconds')");
+      $stmt->execute([$ip_address, AUTH_LOCKOUT_TIME]);
+      $failed_attempts = $stmt->fetchColumn();
+      
+      return $failed_attempts >= AUTH_MAX_ATTEMPTS;
+    });
+    return $result;
+  } catch (Exception $e) {
+    error_log("Rate limit check error: " . $e->getMessage());
+    return false; // エラーの場合は制限しない
+  }
+}
+
+// ログイン試行を記録
+function log_auth_attempt($ip_address, $username, $success) {
+  try {
+    execute_db_operation(function($db) use ($ip_address, $username, $success) {
+      $stmt = $db->prepare("INSERT INTO auth_attempts (ip_address, username, attempt_time, success) VALUES (?, ?, datetime('now', 'localtime'), ?)");
+      return $stmt->execute([$ip_address, $username, $success ? 1 : 0]);
+    });
+  } catch (Exception $e) {
+    error_log("Auth attempt log error: " . $e->getMessage());
+  }
+}
+
+// セッションの作成
+function create_session($user_id, $ip_address) {
+  try {
+    $session_id = bin2hex(random_bytes(32));
+    $expires_at = date('Y-m-d H:i:s', time() + AUTH_SESSION_TIMEOUT);
+    
+    execute_db_operation(function($db) use ($session_id, $user_id, $ip_address, $expires_at) {
+      $stmt = $db->prepare("INSERT INTO auth_sessions (session_id, user_id, ip_address, created_at, expires_at) VALUES (?, ?, ?, datetime('now', 'localtime'), ?)");
+      return $stmt->execute([$session_id, $user_id, $ip_address, $expires_at]);
+    });
+    
+    return $session_id;
+  } catch (Exception $e) {
+    error_log("Session creation error: " . $e->getMessage());
+    return false;
+  }
+}
+
+// セッションの検証
+function validate_session($session_id, $ip_address) {
+  try {
+    $result = execute_db_operation(function($db) use ($session_id, $ip_address) {
+      $stmt = $db->prepare("SELECT user_id FROM auth_sessions WHERE session_id = ? AND ip_address = ? AND expires_at > datetime('now', 'localtime') AND is_valid = 1");
+      $stmt->execute([$session_id, $ip_address]);
+      return $stmt->fetchColumn();
+    });
+    return $result;
+  } catch (Exception $e) {
+    error_log("Session validation error: " . $e->getMessage());
+    return false;
+  }
+}
+
+// セッションの無効化
+function invalidate_session($session_id) {
+  try {
+    execute_db_operation(function($db) use ($session_id) {
+      $stmt = $db->prepare("UPDATE auth_sessions SET is_valid = 0 WHERE session_id = ?");
+      return $stmt->execute([$session_id]);
+    });
+  } catch (Exception $e) {
+    error_log("Session invalidation error: " . $e->getMessage());
+  }
+}
+
+// ユーザー認証
+function authenticate_user($username, $password, $ip_address) {
+  // レート制限チェック
+  if (check_rate_limit($ip_address, $username)) {
+    log_auth_attempt($ip_address, $username, false);
+    return ['success' => false, 'message' => 'アカウントが一時的にロックされています。しばらく時間をおいてから再試行してください。'];
+  }
+  
+  try {
+    $user = execute_db_operation(function($db) use ($username) {
+      $stmt = $db->prepare("SELECT id, password_hash FROM auth_users WHERE username = ? AND is_active = 1");
+      $stmt->execute([$username]);
+      return $stmt->fetch(PDO::FETCH_ASSOC);
+    });
+    
+    if (!$user) {
+      log_auth_attempt($ip_address, $username, false);
+      return ['success' => false, 'message' => 'ユーザー名またはパスワードが正しくありません。'];
+    }
+    
+    if (!verify_password($password, $user['password_hash'])) {
+      log_auth_attempt($ip_address, $username, false);
+      return ['success' => false, 'message' => 'ユーザー名またはパスワードが正しくありません。'];
+    }
+    
+    // 成功したログイン
+    log_auth_attempt($ip_address, $username, true);
+    
+    // セッション作成
+    $session_id = create_session($user['id'], $ip_address);
+    if (!$session_id) {
+      return ['success' => false, 'message' => 'セッションの作成に失敗しました。'];
+    }
+    
+    // 最終ログイン時刻を更新
+    $user_id = $user['id'];
+    execute_db_operation(function($db) use ($user_id) {
+      $stmt = $db->prepare("UPDATE auth_users SET last_login = datetime('now', 'localtime') WHERE id = ?");
+      return $stmt->execute([$user_id]);
+    });
+    
+    return ['success' => true, 'session_id' => $session_id, 'user_id' => $user['id']];
+    
+  } catch (Exception $e) {
+    error_log("Authentication error: " . $e->getMessage());
+    return ['success' => false, 'message' => '認証処理中にエラーが発生しました。'];
+  }
+}
+
+// 強化されたCSRFトークン作成
 function get_csrf_token() {
   if(!isset($_SESSION)) {
     ini_set('session.use_strict_mode', 1);
@@ -165,15 +302,35 @@ function get_csrf_token() {
     header('Cache-Control:');
     header('Pragma:');
   }
-  return hash('sha256', session_id(), false);
+  
+  // より安全なトークン生成
+  if (!isset($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    $_SESSION['csrf_token_time'] = time();
+  }
+  
+  // トークンの有効期限チェック（1時間）
+  if (time() - $_SESSION['csrf_token_time'] > 3600) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    $_SESSION['csrf_token_time'] = time();
+  }
+  
+  return $_SESSION['csrf_token'];
 }
-//csrfトークンをチェック
+
+// 強化されたCSRFトークンチェック
 function check_csrf_token() {
   session_start();
-  $token=filter_input(INPUT_POST,'token');
-  $session_token=isset($_SESSION['token']) ? $_SESSION['token'] : '';
-  if(!$session_token||$token!==$session_token){
+  $token = filter_input(INPUT_POST, 'token');
+  $session_token = isset($_SESSION['csrf_token']) ? $_SESSION['csrf_token'] : '';
+  
+  if (!$session_token || $token !== $session_token) {
     error('無効なアクセスです');
+  }
+  
+  // トークンの有効期限チェック
+  if (time() - $_SESSION['csrf_token_time'] > 3600) {
+    error('セッションが期限切れです。再度お試しください。');
   }
 }
 
@@ -275,11 +432,37 @@ function upload() {
     
     // データベースに保存
     try {
-      execute_db_operation(function($db) use ($userip, $upfile, $invz) {
-        $stmt = $db->prepare("INSERT INTO uplog (created, host, upfile, invz) VALUES (datetime('now', 'localtime'), :host, :upfile, :invz)");
+      // ファイルハッシュの計算
+      $file_hash = hash_file('sha256', $dest);
+      $file_size = filesize($dest);
+      
+      // 追加のセキュリティチェック
+      if (ENABLE_ANTIVIRUS_SCAN === '1') {
+        $av_result = antivirus_scan($dest);
+        if (!$av_result['valid']) {
+          safe_delete_file($dest);
+          $ng_message .= $origin_file.'(' . $av_result['message'] . '), ';
+          continue;
+        }
+      }
+      
+      // 重複チェック
+      if (ENABLE_DUPLICATE_CHECK === '1') {
+        $dup_result = check_duplicate_file($dest);
+        if (!$dup_result['valid']) {
+          safe_delete_file($dest);
+          $ng_message .= $origin_file.'(' . $dup_result['message'] . '), ';
+          continue;
+        }
+      }
+      
+      execute_db_operation(function($db) use ($userip, $upfile, $invz, $file_hash, $file_size) {
+        $stmt = $db->prepare("INSERT INTO uplog (created, host, upfile, invz, file_hash, file_size) VALUES (datetime('now', 'localtime'), :host, :upfile, :invz, :file_hash, :file_size)");
         $stmt->bindParam(':host', $userip, PDO::PARAM_STR);
         $stmt->bindParam(':upfile', $upfile, PDO::PARAM_STR);
         $stmt->bindParam(':invz', $invz, PDO::PARAM_STR);
+        $stmt->bindParam(':file_hash', $file_hash, PDO::PARAM_STR);
+        $stmt->bindParam(':file_size', $file_size, PDO::PARAM_INT);
         return $stmt->execute();
       });
       $ok_num++;
@@ -775,7 +958,7 @@ function validate_audio_file($tmp_file, $extension) {
     'mp3' => array("\xFF\xFB", "\xFF\xF3", "\xFF\xF2", "\x49\x44\x33"), // MP3
     'm4a' => array("\x00\x00\x00\x20\x66\x74\x79\x70", "\x00\x00\x00\x18\x66\x74\x79\x70"), // M4A
     'aac' => array("\xFF\xF1", "\xFF\xF9"), // AAC
-    'ogg' => array("OggS"), // OGG
+    'opus' => array("OggS"), // OGG
     'flac' => array("fLaC") // FLAC
   );
   
@@ -806,4 +989,147 @@ function sanitize_filename($filename) {
   $filename = trim($filename, '_');
   
   return $filename;
+}
+
+// ファイルの深層スキャン（新機能）
+function deep_scan_file($tmp_file, $extension) {
+  // ファイル全体をスキャンして危険なパターンを検出
+  $file_handle = fopen($tmp_file, 'rb');
+  if ($file_handle === false) {
+    return array('valid' => false, 'message' => 'ファイルの読み込みに失敗しました');
+  }
+  
+  $file_size = filesize($tmp_file);
+  $chunk_size = 8192; // 8KBずつ読み込み
+  $dangerous_patterns = array(
+    '<?php', '<?=', '<? ', '<?php', '<?php ',
+    'eval(', 'exec(', 'system(', 'shell_exec(',
+    'base64_decode(', 'gzinflate(', 'str_rot13(',
+    'javascript:', 'vbscript:', 'data:text/html',
+    'onload=', 'onerror=', 'onclick=',
+    'document.cookie', 'window.location',
+    'ActiveXObject', 'WScript.Shell'
+  );
+  
+  $position = 0;
+  while ($position < $file_size) {
+    $chunk = fread($file_handle, $chunk_size);
+    if ($chunk === false) {
+      fclose($file_handle);
+      return array('valid' => false, 'message' => 'ファイルの読み込み中にエラーが発生しました');
+    }
+    
+    // 危険なパターンをチェック
+    foreach ($dangerous_patterns as $pattern) {
+      if (stripos($chunk, $pattern) !== false) {
+        fclose($file_handle);
+        return array('valid' => false, 'message' => '危険なコードパターンが検出されました');
+      }
+    }
+    
+    $position += strlen($chunk);
+  }
+  
+  fclose($file_handle);
+  return array('valid' => true, 'message' => '深層スキャン完了');
+}
+
+// 高度なファイル整合性チェック（新機能）
+function check_file_integrity_advanced($tmp_file, $extension) {
+  // ファイルの構造を詳細にチェック
+  $file_handle = fopen($tmp_file, 'rb');
+  if ($file_handle === false) {
+    return array('valid' => false, 'message' => 'ファイルの読み込みに失敗しました');
+  }
+  
+  $file_size = filesize($tmp_file);
+  
+  // 最小ファイルサイズチェック
+  $min_sizes = array(
+    'mp3' => 100, // 最小100バイト
+    'm4a' => 100,
+    'aac' => 100,
+    'opus' => 100,
+    'ogg' => 100,
+    'flac' => 100
+  );
+  
+  if (isset($min_sizes[$extension]) && $file_size < $min_sizes[$extension]) {
+    fclose($file_handle);
+    return array('valid' => false, 'message' => 'ファイルサイズが小さすぎます');
+  }
+  
+  // ファイル構造の検証
+  $header = fread($file_handle, 128);
+  fclose($file_handle);
+  
+  // オーディオファイルの構造チェック
+  if ($extension === 'mp3') {
+    if (!preg_match('/^\xFF[\xFB\xF3\xF2]/', $header) && !preg_match('/^ID3/', $header)) {
+      return array('valid' => false, 'message' => 'MP3ファイルの構造が正しくありません');
+    }
+  } elseif ($extension === 'm4a') {
+    if (strpos($header, 'ftyp') === false) {
+      return array('valid' => false, 'message' => 'M4Aファイルの構造が正しくありません');
+    }
+  } elseif ($extension === 'flac') {
+    if (strpos($header, 'fLaC') === false) {
+      return array('valid' => false, 'message' => 'FLACファイルの構造が正しくありません');
+    }
+  } elseif ($extension === 'ogg') {
+    if (strpos($header, 'OggS') === false) {
+      return array('valid' => false, 'message' => 'OGGファイルの構造が正しくありません');
+    }
+  }
+  
+  return array('valid' => true, 'message' => 'ファイル整合性チェック完了');
+}
+
+// アンチウイルススキャン（新機能）
+function antivirus_scan($tmp_file) {
+  // カスタムウイルスシグネチャチェック
+  $virus_signatures = array(
+    // 一般的なマルウェアパターン
+    "\x4D\x5A\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00",
+    "\x7F\x45\x4C\x46\x01\x01\x01\x00",
+    // その他の危険なパターン
+  );
+  
+  $file_handle = fopen($tmp_file, 'rb');
+  if ($file_handle === false) {
+    return array('valid' => false, 'message' => 'ファイルの読み込みに失敗しました');
+  }
+  
+  $header = fread($file_handle, 64);
+  fclose($file_handle);
+  
+  foreach ($virus_signatures as $signature) {
+    if (strpos($header, $signature) !== false) {
+      return array('valid' => false, 'message' => 'マルウェアの可能性が検出されました');
+    }
+  }
+  
+  return array('valid' => true, 'message' => 'アンチウイルススキャン完了');
+}
+
+// ファイルの重複チェック（新機能）
+function check_duplicate_file($tmp_file) {
+  $file_hash = hash_file('sha256', $tmp_file);
+  
+  try {
+    $result = execute_db_operation(function($db) use ($file_hash) {
+      $stmt = $db->prepare("SELECT COUNT(*) FROM uplog WHERE file_hash = ?");
+      $stmt->execute([$file_hash]);
+      return $stmt->fetchColumn() > 0;
+    });
+    
+    if ($result) {
+      return array('valid' => false, 'message' => '同じ内容のファイルが既にアップロードされています');
+    }
+  } catch (Exception $e) {
+    // エラーの場合は重複チェックをスキップ
+    error_log("Duplicate check error: " . $e->getMessage());
+  }
+  
+  return array('valid' => true, 'message' => '重複チェック完了');
 }

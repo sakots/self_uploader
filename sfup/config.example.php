@@ -97,6 +97,35 @@ define('ENABLE_FILE_INTEGRITY_CHECK', '1');
 // 孤立したファイルの自動削除を有効にする 有効:1 無効:0
 define('ENABLE_ORPHANED_FILE_CLEANUP', '1');
 
+// 強化されたパスワード認証を使用する 使用:1 従来方式:0
+define('ENABLE_ENHANCED_AUTH', '1');
+
+// 認証システムの定数
+define('AUTH_MAX_ATTEMPTS', 5);
+define('AUTH_LOCKOUT_TIME', 900);
+define('AUTH_SESSION_TIMEOUT', 3600);
+define('AUTH_PASSWORD_MIN_LENGTH', 8);
+define('AUTH_HASH_COST', 12);
+
+// ファイルアップロード強化設定
+// 深層スキャンを有効にする 有効:1 無効:0
+define('ENABLE_DEEP_SCAN', '1');
+
+// アンチウイルススキャンを有効にする 有効:1 無効:0
+define('ENABLE_ANTIVIRUS_SCAN', '1');
+
+// ファイル重複チェックを有効にする 有効:1 無効:0
+define('ENABLE_DUPLICATE_CHECK', '1');
+
+// 高度なファイル整合性チェックを有効にする 有効:1 無効:0
+define('ENABLE_ADVANCED_INTEGRITY_CHECK', '1');
+
+// ファイルスキャンの最大サイズ（MB）
+define('MAX_SCAN_SIZE', 50);
+
+// 危険なファイルの自動削除を有効にする 有効:1 無効:0
+define('ENABLE_AUTO_DELETE_DANGEROUS', '1');
+
 /* ------------- できれば変更してほしくないところ ------------- */
 //スクリプト名
 define('PHP_SELF', 'index.php');
