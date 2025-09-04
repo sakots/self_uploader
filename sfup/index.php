@@ -104,6 +104,9 @@ function init() {
       $sql = "CREATE TABLE uplog (id integer primary key autoincrement, created timestamp, name VARCHAR(1000), sub VARCHAR(1000), com VARCHAR(10000), host TEXT, pwd TEXT, upfile TEXT, age INT, invz VARCHAR(1), file_hash TEXT, file_size INTEGER, scan_result TEXT)";
       $db = $db->query($sql);
       $db = null; //db切断
+    } else {
+      // 既存のデータベースを新しい形式に移行
+      migrate_database();
     }
   } catch (PDOException $e) {
     echo "DB接続エラー:" .$e->getMessage();
@@ -923,6 +926,101 @@ function safe_delete_file($file_path) {
   }
   
   return $result;
+}
+
+// データベース移行関数
+function migrate_database() {
+  try {
+    $db = new PDO(DB_PDO);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // テーブル構造を確認
+    $stmt = $db->prepare("PRAGMA table_info(uplog)");
+    $stmt->execute();
+    $columns = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
+    
+    $migrations_needed = array();
+    
+    // 新しいカラムが存在するかチェック
+    if (!in_array('file_hash', $columns)) {
+      $migrations_needed[] = 'file_hash';
+    }
+    if (!in_array('file_size', $columns)) {
+      $migrations_needed[] = 'file_size';
+    }
+    if (!in_array('scan_result', $columns)) {
+      $migrations_needed[] = 'scan_result';
+    }
+    
+    // 認証テーブルが存在するかチェック
+    $stmt = $db->prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='auth_users'");
+    $stmt->execute();
+    $auth_users_exists = $stmt->fetchColumn() !== false;
+    
+    if (!$auth_users_exists) {
+      $migrations_needed[] = 'auth_tables';
+    }
+    
+    // 移行が必要な場合のみ実行
+    if (!empty($migrations_needed)) {
+      execute_migrations($db, $migrations_needed);
+    }
+    
+    $db = null;
+  } catch (PDOException $e) {
+    error_log("Database migration error: " . $e->getMessage());
+    throw $e;
+  }
+}
+
+// 移行処理を実行
+function execute_migrations($db, $migrations) {
+  foreach ($migrations as $migration) {
+    switch ($migration) {
+      case 'file_hash':
+        $db->exec("ALTER TABLE uplog ADD COLUMN file_hash TEXT");
+        break;
+      case 'file_size':
+        $db->exec("ALTER TABLE uplog ADD COLUMN file_size INTEGER");
+        break;
+      case 'scan_result':
+        $db->exec("ALTER TABLE uplog ADD COLUMN scan_result TEXT");
+        break;
+      case 'auth_tables':
+        // 認証テーブルの作成
+        $db->exec("CREATE TABLE auth_users (id integer primary key autoincrement, username VARCHAR(100) UNIQUE, password_hash TEXT, created_at timestamp, last_login timestamp, is_active INTEGER DEFAULT 1)");
+        $db->exec("CREATE TABLE auth_attempts (id integer primary key autoincrement, ip_address TEXT, username VARCHAR(100), attempt_time timestamp, success INTEGER DEFAULT 0)");
+        $db->exec("CREATE TABLE auth_sessions (id integer primary key autoincrement, session_id TEXT UNIQUE, user_id INTEGER, ip_address TEXT, created_at timestamp, expires_at timestamp, is_valid INTEGER DEFAULT 1)");
+        break;
+    }
+  }
+  
+  // 既存のファイルに対してハッシュとサイズを計算
+  if (in_array('file_hash', $migrations) || in_array('file_size', $migrations)) {
+    update_existing_files($db);
+  }
+}
+
+// 既存のファイルのハッシュとサイズを更新
+function update_existing_files($db) {
+  try {
+    $stmt = $db->prepare("SELECT id, upfile FROM uplog WHERE file_hash IS NULL OR file_size IS NULL");
+    $stmt->execute();
+    $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($files as $file) {
+      $file_path = UP_DIR . '/' . $file['upfile'];
+      if (file_exists($file_path)) {
+        $file_hash = hash_file('sha256', $file_path);
+        $file_size = filesize($file_path);
+        
+        $update_stmt = $db->prepare("UPDATE uplog SET file_hash = ?, file_size = ? WHERE id = ?");
+        $update_stmt->execute([$file_hash, $file_size, $file['id']]);
+      }
+    }
+  } catch (Exception $e) {
+    error_log("Error updating existing files: " . $e->getMessage());
+  }
 }
 
 // ディレクトリの安全性チェック
