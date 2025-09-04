@@ -1,11 +1,11 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.2.0
+//  SELF UPLOADER v0.2.1
 //  by sakots https://dev.oekakibbs.net/
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.2.0'); //lot.250904.0
+define('SFUP_VER','v0.2.1'); //lot.250904.1
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -132,10 +132,12 @@ function init() {
       $err .= $dir_name . "ディレクトリの権限設定に失敗しました<br>";
     }
     
-    // ディレクトリの安全性をチェック
-    $validation_errors = validate_directory($dir, $dir_name);
-    foreach ($validation_errors as $error) {
-      $err .= $error . "<br>";
+    // ディレクトリの安全性をチェック（設定で無効化可能）
+    if (!defined('DISABLE_DIRECTORY_PERMISSION_CHECK') || DISABLE_DIRECTORY_PERMISSION_CHECK !== '1') {
+      $validation_errors = validate_directory($dir, $dir_name);
+      foreach ($validation_errors as $error) {
+        $err .= $error . "<br>";
+      }
     }
   }
   
@@ -1037,10 +1039,25 @@ function validate_directory($dir_path, $dir_name) {
       $errors[] = $dir_name . "ディレクトリに読み取り権限がありません";
     }
     
-    // ディレクトリの所有者と権限をチェック
+    // ディレクトリの権限をチェック（より柔軟な判定）
     $perms = fileperms($dir_path);
-    if (($perms & 0x0200) === 0) { // 所有者の書き込み権限がない
-      $errors[] = $dir_name . "ディレクトリの権限が適切ではありません";
+    $owner_writable = ($perms & 0x0200) !== 0; // 所有者の書き込み権限
+    $group_writable = ($perms & 0x0010) !== 0; // グループの書き込み権限
+    $other_writable = ($perms & 0x0002) !== 0; // その他の書き込み権限
+    
+    // 少なくとも何らかの書き込み権限があるかチェック
+    if (!$owner_writable && !$group_writable && !$other_writable) {
+      $errors[] = $dir_name . "ディレクトリに書き込み権限がありません（権限: " . substr(sprintf('%o', $perms), -3) . "）";
+    }
+    
+    // セキュリティログに記録（デバッグ用）
+    if (defined('ENABLE_SECURITY_LOGGING') && ENABLE_SECURITY_LOGGING === '1') {
+      log_security_event('DIRECTORY_PERMISSION_CHECK', 
+        "Directory: $dir_path, Permissions: " . substr(sprintf('%o', $perms), -3) . 
+        " (Owner: " . ($owner_writable ? 'W' : '-') . 
+        ", Group: " . ($group_writable ? 'W' : '-') . 
+        ", Other: " . ($other_writable ? 'W' : '-') . ")", 
+        'INFO');
     }
   }
   

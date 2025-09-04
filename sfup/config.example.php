@@ -136,6 +136,9 @@ define('ENABLE_ERROR_LOGGING', '1');
 // セキュリティログの有効化 有効:1 無効:0
 define('ENABLE_SECURITY_LOGGING', '1');
 
+// ディレクトリ権限チェックの無効化 無効:1 有効:0（問題がある場合のみ1に設定）
+define('DISABLE_DIRECTORY_PERMISSION_CHECK', '0');
+
 /* ------------- できれば変更してほしくないところ ------------- */
 //スクリプト名
 define('PHP_SELF', 'index.php');
