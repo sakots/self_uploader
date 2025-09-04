@@ -5,7 +5,7 @@
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.1.7'); //lot.250903.0
+define('SFUP_VER','v0.1.7'); //lot.250904.0
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -19,7 +19,7 @@ if (($php_ver = phpversion()) < "7.4.0") {
   die("PHP version 7.4.0 or higher is required for this program to work. <br>\n(Current PHP version:{$php_ver})");
 }
 //コンフィグのバージョンが古くて互換性がない場合動作させない
-if (CONF_VER < 20250903 || !defined('CONF_VER')) {
+if (CONF_VER < 20250904 || !defined('CONF_VER')) {
   die("コンフィグファイルに互換性がないようです。再設定をお願いします。<br>\n The configuration file is incompatible. Please reconfigure it.");
 }
 //管理パスが初期値(kanripass)の場合は動作させない
@@ -157,7 +157,272 @@ function get_uip() {
   }
 }
 
-// 強化された認証システム関数群
+// エラー処理の改善
+
+// エラーログの設定
+define('ERROR_LOG_FILE', __DIR__ . '/error.log');
+define('ERROR_LOG_MAX_SIZE', 10 * 1024 * 1024); // 10MB
+define('ERROR_LOG_MAX_AGE', 30 * 24 * 3600); // 30日
+
+// カスタムエラーハンドラー
+function custom_error_handler($errno, $errstr, $errfile, $errline) {
+  $error_types = array(
+    E_ERROR => 'ERROR',
+    E_WARNING => 'WARNING',
+    E_PARSE => 'PARSE',
+    E_NOTICE => 'NOTICE',
+    E_CORE_ERROR => 'CORE_ERROR',
+    E_CORE_WARNING => 'CORE_WARNING',
+    E_COMPILE_ERROR => 'COMPILE_ERROR',
+    E_COMPILE_WARNING => 'COMPILE_WARNING',
+    E_USER_ERROR => 'USER_ERROR',
+    E_USER_WARNING => 'USER_WARNING',
+    E_USER_NOTICE => 'USER_NOTICE',
+    E_STRICT => 'STRICT',
+    E_RECOVERABLE_ERROR => 'RECOVERABLE_ERROR',
+    E_DEPRECATED => 'DEPRECATED',
+    E_USER_DEPRECATED => 'USER_DEPRECATED'
+  );
+  
+  $error_type = isset($error_types[$errno]) ? $error_types[$errno] : 'UNKNOWN';
+  $timestamp = date('Y-m-d H:i:s');
+  $ip = get_uip();
+  $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+  
+  $log_message = sprintf(
+    "[%s] [%s] [IP: %s] [UA: %s] %s in %s on line %d\n",
+    $timestamp,
+    $error_type,
+    $ip,
+    substr($user_agent, 0, 100),
+    $errstr,
+    $errfile,
+    $errline
+  );
+  
+  // エラーログファイルに書き込み
+  if (is_writable(dirname(ERROR_LOG_FILE)) && ENABLE_ERROR_LOGGING === '1') {
+    file_put_contents(ERROR_LOG_FILE, $log_message, FILE_APPEND | LOCK_EX);
+    
+    // ログファイルのサイズと古いログの管理
+    manage_error_log();
+  }
+  
+  // 致命的なエラーの場合はユーザーに表示
+  if (in_array($errno, array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR))) {
+    if (defined('DISPLAY_ERRORS') && DISPLAY_ERRORS === '1') {
+      echo "<div style='color: red; border: 1px solid red; padding: 10px; margin: 10px;'>";
+      echo "<strong>システムエラーが発生しました</strong><br>";
+      echo "エラー: " . htmlspecialchars($errstr) . "<br>";
+      echo "ファイル: " . htmlspecialchars($errfile) . "<br>";
+      echo "行: " . $errline;
+      echo "</div>";
+    } else {
+      echo "<div style='color: red; border: 1px solid red; padding: 10px; margin: 10px;'>";
+      echo "<strong>システムエラーが発生しました</strong><br>";
+      echo "システム管理者にお問い合わせください。";
+      echo "</div>";
+    }
+  }
+  
+  return true; // 内部エラーハンドラーを実行しない
+}
+
+// エラーログの管理
+function manage_error_log() {
+  if (!file_exists(ERROR_LOG_FILE)) {
+    return;
+  }
+  
+  $file_size = filesize(ERROR_LOG_FILE);
+  $file_time = filemtime(ERROR_LOG_FILE);
+  $current_time = time();
+  
+  // ファイルサイズが上限を超えた場合
+  if ($file_size > ERROR_LOG_MAX_SIZE) {
+    $backup_file = ERROR_LOG_FILE . '.backup.' . date('Y-m-d-H-i-s');
+    rename(ERROR_LOG_FILE, $backup_file);
+  }
+  
+  // 古いログファイルを削除
+  $log_dir = dirname(ERROR_LOG_FILE);
+  $files = glob($log_dir . '/error.log.backup.*');
+  foreach ($files as $file) {
+    if (filemtime($file) < ($current_time - ERROR_LOG_MAX_AGE)) {
+      unlink($file);
+    }
+  }
+}
+
+// 例外ハンドラー
+function custom_exception_handler($exception) {
+  $timestamp = date('Y-m-d H:i:s');
+  $ip = get_uip();
+  $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+  
+  $log_message = sprintf(
+    "[%s] [EXCEPTION] [IP: %s] [UA: %s] %s in %s on line %d\nStack trace:\n%s\n",
+    $timestamp,
+    $ip,
+    substr($user_agent, 0, 100),
+    $exception->getMessage(),
+    $exception->getFile(),
+    $exception->getLine(),
+    $exception->getTraceAsString()
+  );
+  
+  // エラーログファイルに書き込み
+  if (is_writable(dirname(ERROR_LOG_FILE)) && ENABLE_ERROR_LOGGING === '1') {
+    file_put_contents(ERROR_LOG_FILE, $log_message, FILE_APPEND | LOCK_EX);
+    manage_error_log();
+  }
+  
+  // ユーザーに表示
+  if (defined('DISPLAY_ERRORS') && DISPLAY_ERRORS === '1') {
+    echo "<div style='color: red; border: 1px solid red; padding: 10px; margin: 10px;'>";
+    echo "<strong>例外が発生しました</strong><br>";
+    echo "メッセージ: " . htmlspecialchars($exception->getMessage()) . "<br>";
+    echo "ファイル: " . htmlspecialchars($exception->getFile()) . "<br>";
+    echo "行: " . $exception->getLine();
+    echo "</div>";
+  } else {
+    echo "<div style='color: red; border: 1px solid red; padding: 10px; margin: 10px;'>";
+    echo "<strong>システムエラーが発生しました</strong><br>";
+    echo "システム管理者にお問い合わせください。";
+    echo "</div>";
+  }
+}
+
+// 致命的エラーハンドラー
+function fatal_error_handler() {
+  $error = error_get_last();
+  if ($error !== null && in_array($error['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
+    $timestamp = date('Y-m-d H:i:s');
+    $ip = get_uip();
+    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+    
+    $log_message = sprintf(
+      "[%s] [FATAL_ERROR] [IP: %s] [UA: %s] %s in %s on line %d\n",
+      $timestamp,
+      $ip,
+      substr($user_agent, 0, 100),
+      $error['message'],
+      $error['file'],
+      $error['line']
+    );
+    
+      // エラーログファイルに書き込み
+  if (is_writable(dirname(ERROR_LOG_FILE)) && ENABLE_ERROR_LOGGING === '1') {
+    file_put_contents(ERROR_LOG_FILE, $log_message, FILE_APPEND | LOCK_EX);
+    manage_error_log();
+  }
+  }
+}
+
+  // セキュリティログ関数
+  function log_security_event($event_type, $details, $severity = 'INFO') {
+    $timestamp = date('Y-m-d H:i:s');
+    $ip = get_uip();
+    $user_agent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+    
+    $log_message = sprintf(
+      "[%s] [SECURITY_%s] [IP: %s] [UA: %s] %s: %s\n",
+      $timestamp,
+      strtoupper($severity),
+      $ip,
+      substr($user_agent, 0, 100),
+      $event_type,
+      $details
+    );
+    
+    $security_log_file = __DIR__ . '/security.log';
+    if (is_writable(dirname($security_log_file)) && ENABLE_SECURITY_LOGGING === '1') {
+      file_put_contents($security_log_file, $log_message, FILE_APPEND | LOCK_EX);
+    }
+  }
+
+// データベースエラーハンドラー
+function handle_database_error($exception, $operation = 'unknown') {
+  $error_message = sprintf(
+    "Database error in operation '%s': %s (Code: %s)",
+    $operation,
+    $exception->getMessage(),
+    $exception->getCode()
+  );
+  
+  // セキュリティログに記録
+  log_security_event('DATABASE_ERROR', $error_message, 'ERROR');
+  
+  // エラーログに記録
+  $timestamp = date('Y-m-d H:i:s');
+  $ip = get_uip();
+  $log_message = sprintf(
+    "[%s] [DB_ERROR] [IP: %s] %s\n",
+    $timestamp,
+    $ip,
+    $error_message
+  );
+  
+  if (is_writable(dirname(ERROR_LOG_FILE)) && ENABLE_ERROR_LOGGING === '1') {
+    file_put_contents(ERROR_LOG_FILE, $log_message, FILE_APPEND | LOCK_EX);
+  }
+  
+  // ユーザーに表示
+  if (defined('DISPLAY_ERRORS') && DISPLAY_ERRORS === '1') {
+    return "データベースエラーが発生しました: " . htmlspecialchars($exception->getMessage());
+  } else {
+    return "データベースエラーが発生しました。システム管理者にお問い合わせください。";
+  }
+}
+
+// ファイル操作エラーハンドラー
+function handle_file_error($operation, $file_path, $error_message) {
+  $timestamp = date('Y-m-d H:i:s');
+  $ip = get_uip();
+  
+  $log_message = sprintf(
+    "[%s] [FILE_ERROR] [IP: %s] Operation: %s, File: %s, Error: %s\n",
+    $timestamp,
+    $ip,
+    $operation,
+    $file_path,
+    $error_message
+  );
+  
+  if (is_writable(dirname(ERROR_LOG_FILE)) && ENABLE_ERROR_LOGGING === '1') {
+    file_put_contents(ERROR_LOG_FILE, $log_message, FILE_APPEND | LOCK_EX);
+  }
+  
+  // セキュリティログに記録
+  log_security_event('FILE_OPERATION_ERROR', "Operation: $operation, File: $file_path, Error: $error_message", 'WARNING');
+}
+
+// 入力検証エラーハンドラー
+function handle_validation_error($field, $value, $rule) {
+  $timestamp = date('Y-m-d H:i:s');
+  $ip = get_uip();
+  
+  $log_message = sprintf(
+    "[%s] [VALIDATION_ERROR] [IP: %s] Field: %s, Value: %s, Rule: %s\n",
+    $timestamp,
+    $ip,
+    $field,
+    substr($value, 0, 100), // 値の一部のみ記録
+    $rule
+  );
+  
+  if (is_writable(dirname(ERROR_LOG_FILE)) && ENABLE_ERROR_LOGGING === '1') {
+    file_put_contents(ERROR_LOG_FILE, $log_message, FILE_APPEND | LOCK_EX);
+  }
+  
+  // セキュリティログに記録
+  log_security_event('INPUT_VALIDATION_ERROR', "Field: $field, Rule: $rule", 'WARNING');
+}
+
+// エラーハンドラーの設定
+set_error_handler('custom_error_handler');
+set_exception_handler('custom_exception_handler');
+register_shutdown_function('fatal_error_handler');
 
 // パスワードのハッシュ化
 function hash_password($password) {
@@ -342,6 +607,7 @@ function get_db_connection() {
     $db->setAttribute(PDO::ATTR_TIMEOUT, DB_TIMEOUT);
     return $db;
   } catch (PDOException $e) {
+    handle_database_error($e, 'connection');
     throw $e;
   }
 }
@@ -359,6 +625,8 @@ function execute_db_operation($operation) {
       return $result;
     } catch (PDOException $e) {
       $last_error = $e;
+      handle_database_error($e, 'operation');
+      
       if (strpos($e->getMessage(), 'database is locked') !== false) {
         $retry_count++;
         if ($retry_count < DB_RETRY_COUNT) {
@@ -637,17 +905,25 @@ function safe_delete_file($file_path) {
   
   // アップロードディレクトリ外のファイルは削除しない
   if ($real_path === false || $up_dir_real === false || strpos($real_path, $up_dir_real) !== 0) {
-    error_log("Attempted to delete file outside upload directory: " . $file_path);
+    $error_msg = "Attempted to delete file outside upload directory: " . $file_path;
+    handle_file_error('delete', $file_path, $error_msg);
     return false;
   }
   
   // ファイルの権限を確認
   if (!is_writable($file_path)) {
-    error_log("Cannot delete file (not writable): " . $file_path);
+    $error_msg = "Cannot delete file (not writable): " . $file_path;
+    handle_file_error('delete', $file_path, $error_msg);
     return false;
   }
   
-  return unlink($file_path);
+  $result = unlink($file_path);
+  if (!$result) {
+    $error_msg = "Failed to delete file: " . $file_path;
+    handle_file_error('delete', $file_path, $error_msg);
+  }
+  
+  return $result;
 }
 
 // ディレクトリの安全性チェック
@@ -845,16 +1121,19 @@ function error($mes) {
 function validate_uploaded_file($tmp_file, $origin_file, $extension) {
   // 1. ファイルサイズの基本チェック
   if (!is_uploaded_file($tmp_file)) {
+    handle_validation_error('file', $origin_file, 'not_uploaded_file');
     return array('valid' => false, 'message' => '不正なアップロードファイルです');
   }
   
   // 2. ファイルサイズの詳細チェック
   $file_size = filesize($tmp_file);
   if ($file_size === false || $file_size === 0) {
+    handle_validation_error('file_size', $origin_file, 'invalid_size');
     return array('valid' => false, 'message' => 'ファイルサイズの取得に失敗しました');
   }
   
   if ($file_size >= UP_MAX_SIZE) {
+    handle_validation_error('file_size', $origin_file, 'size_exceeded');
     return array('valid' => false, 'message' => '設定されたファイルサイズをオーバーしています');
   }
   
@@ -862,12 +1141,14 @@ function validate_uploaded_file($tmp_file, $origin_file, $extension) {
   $extension = strtolower($extension);
   $allowed_extensions = explode('|', strtolower(ACCEPT_FILE_EXTN));
   if (!in_array($extension, $allowed_extensions)) {
+    handle_validation_error('extension', $extension, 'not_allowed');
     return array('valid' => false, 'message' => '規定外の拡張子です');
   }
   
   // 4. ファイルヘッダーの検証
   $file_handle = fopen($tmp_file, 'rb');
   if ($file_handle === false) {
+    handle_file_error('open', $tmp_file, 'Failed to open file for header validation');
     return array('valid' => false, 'message' => 'ファイルの読み込みに失敗しました');
   }
   
@@ -891,6 +1172,7 @@ function validate_uploaded_file($tmp_file, $origin_file, $extension) {
   
   foreach ($dangerous_signatures as $signature) {
     if (strpos($header, $signature) === 0) {
+      handle_validation_error('file_signature', $origin_file, 'dangerous_signature_detected');
       return array('valid' => false, 'message' => '危険なファイル形式が検出されました');
     }
   }
@@ -901,6 +1183,7 @@ function validate_uploaded_file($tmp_file, $origin_file, $extension) {
   finfo_close($finfo);
   
   if ($mime_type === false) {
+    handle_validation_error('mime_type', $origin_file, 'mime_detection_failed');
     return array('valid' => false, 'message' => 'MIME typeの取得に失敗しました');
   }
   
@@ -915,6 +1198,7 @@ function validate_uploaded_file($tmp_file, $origin_file, $extension) {
   }
   
   if (!$mime_found) {
+    handle_validation_error('mime_type', $mime_type, 'not_allowed_mime');
     return array('valid' => false, 'message' => '規定外のMIME type: ' . $mime_type);
   }
   
@@ -929,6 +1213,7 @@ function validate_uploaded_file($tmp_file, $origin_file, $extension) {
   );
   
   if (isset($expected_mime_map[$extension]) && $expected_mime_map[$extension] !== $mime_type) {
+    handle_validation_error('mime_consistency', $origin_file, 'extension_mime_mismatch');
     return array('valid' => false, 'message' => 'ファイル拡張子とMIME typeが一致しません');
   }
   

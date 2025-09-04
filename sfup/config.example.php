@@ -126,10 +126,20 @@ define('MAX_SCAN_SIZE', 50);
 // 危険なファイルの自動削除を有効にする 有効:1 無効:0
 define('ENABLE_AUTO_DELETE_DANGEROUS', '1');
 
+// エラー処理設定
+// エラーの詳細表示 有効:1 無効:0（本番環境では0を推奨）
+define('DISPLAY_ERRORS', '0');
+
+// エラーログの有効化 有効:1 無効:0
+define('ENABLE_ERROR_LOGGING', '1');
+
+// セキュリティログの有効化 有効:1 無効:0
+define('ENABLE_SECURITY_LOGGING', '1');
+
 /* ------------- できれば変更してほしくないところ ------------- */
 //スクリプト名
 define('PHP_SELF', 'index.php');
 
 /* ------------- コンフィグ互換性管理 ------------- */
 
-define('CONF_VER', 20250903);
+define('CONF_VER', 20250904);
