@@ -1,11 +1,11 @@
 <?php
 //--------------------------------------------------
-//  SELF UPLOADER v0.2.1
+//  SELF UPLOADER v0.2.3
 //  by sakots https://dev.oekakibbs.net/
 //--------------------------------------------------
 
 //スクリプトのバージョン
-define('SFUP_VER','v0.2.2'); //lot.250904.2
+define('SFUP_VER','v0.2.3'); //lot.260216.2
 
 //設定の読み込み
 require_once (__DIR__.'/config.php');
@@ -164,10 +164,24 @@ function get_uip() {
 
 // エラー処理の改善
 
-// エラーログの設定
 define('ERROR_LOG_FILE', __DIR__ . '/error.log');
 define('ERROR_LOG_MAX_SIZE', 10 * 1024 * 1024); // 10MB
 define('ERROR_LOG_MAX_AGE', 30 * 24 * 3600); // 30日
+
+// エラーログの設定
+if(file_exists(ERROR_LOG_FILE)) {
+  if (!is_writable(ERROR_LOG_FILE)) {
+    die("エラーログファイルに書き込めません。パーミッションを確認してください。<br>\nCannot write to error log file. Please check permissions.");
+  }
+} else {
+  if (!is_writable(__DIR__)) {
+    die("エラーログファイルを作成できません。ディレクトリのパーミッションを確認してください。<br>\nCannot create error log file. Please check directory permissions.");
+  } else {
+    // エラーログファイルを作成
+    file_put_contents(ERROR_LOG_FILE, ""); // 空のファイルを作成
+    chmod(ERROR_LOG_FILE, PERMISSION_FOR_LOG); // 適切な権限を設定
+  }
+}
 
 // カスタムエラーハンドラー
 function custom_error_handler($errno, $errstr, $errfile, $errline) {
